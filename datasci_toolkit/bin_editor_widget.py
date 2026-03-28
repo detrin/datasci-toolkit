@@ -58,6 +58,7 @@ class BinEditorWidget:
         self._btn_add.on_click(self._on_add_split)
 
         self._out_chart = widgets.Output()
+        self._out_stability = widgets.Output()
         self._out_ops = widgets.Output()
         self._out_sugg = widgets.Output()
         self._out_info = widgets.Output()
@@ -65,7 +66,7 @@ class BinEditorWidget:
         top = widgets.HBox([self._dd, self._btn_undo, self._btn_reset, self._btn_suggest, self._btn_accept])
         num_row = widgets.HBox([self._ft_split, self._btn_add])
 
-        self._layout = widgets.VBox([top, self._out_chart, num_row, self._out_ops, self._out_sugg, self._out_info])
+        self._layout = widgets.VBox([top, self._out_chart, self._out_stability, num_row, self._out_ops, self._out_sugg, self._out_info])
         self._render()
 
     def _on_feat(self, change: dict[str, Any]) -> None:
@@ -95,6 +96,7 @@ class BinEditorWidget:
 
     def _render(self) -> None:
         self._render_chart()
+        self._render_stability()
         self._render_ops()
         with self._out_sugg:
             clear_output(wait=True)
@@ -132,6 +134,32 @@ class BinEditorWidget:
                 ax1.text(xi, p_val + max(pop) * 0.02, f"{w_val:.2f}", ha="center", va="bottom", fontsize=7, color="#1a1a6e", fontweight="bold")
 
             ax1.set_title(f"{self._feat}   IV = {state['iv']:.4f}   n_bins = {n}", fontsize=10)
+            fig.tight_layout()
+            plt.show()
+
+    def _render_stability(self) -> None:
+        state = self._ed.state(self._feat)
+        with self._out_stability:
+            clear_output(wait=True)
+            if "temporal" not in state:
+                return
+            temp = state["temporal"]
+            months = temp["months"]
+            er_by_bin = temp["event_rates"]
+            rsi = temp["rsi"]
+            n = state["n_bins"]
+            labels = state["bins"][:n]
+
+            fig, ax = plt.subplots(figsize=(max(5, len(months) * 0.8), 3.0))
+            for i in range(n):
+                xs = [m for m, v in zip(months, er_by_bin[i]) if v is not None]
+                ys = [v for v in er_by_bin[i] if v is not None]
+                if xs:
+                    ax.plot(xs, ys, "o-", color=_PALETTE[i % len(_PALETTE)], linewidth=1.5, markersize=4, label=labels[i])
+            ax.set_xlabel("Month", fontsize=9)
+            ax.set_ylabel("Event rate", fontsize=9)
+            ax.set_title(f"{self._feat}  stability  RSI = {rsi:.4f}", fontsize=10)
+            ax.legend(fontsize=7, loc="upper right", ncol=max(1, n // 4))
             fig.tight_layout()
             plt.show()
 

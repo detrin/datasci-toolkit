@@ -6,6 +6,8 @@ from typing import Any
 import numpy as np
 import polars as pl
 
+from datasci_toolkit.grouping import _rsi
+
 _SMOOTH = 0.5
 
 
@@ -29,6 +31,48 @@ def _bin_stats(y: np.ndarray, w: np.ndarray, assignments: np.ndarray, n_bins: in
     woe_nan = float(np.log(nan_de / nan_dn))
 
     return {"counts": counts, "event_rates": event_rates, "woe": np.append(woe_d, woe_nan), "iv": iv}
+
+
+def _temporal_stats(
+    y: np.ndarray,
+    w: np.ndarray,
+    assignments: np.ndarray,
+    n_bins: int,
+    t: np.ndarray,
+    threshold: float,
+) -> dict[str, Any]:
+    months = np.sort(np.unique(t))
+    er_by_bin: list[list[float | None]] = [[] for _ in range(n_bins)]
+    ps_by_bin: list[list[float | None]] = [[] for _ in range(n_bins)]
+
+    for m in months:
+        mask = t == m
+        s = _bin_stats(y[mask], w[mask], assignments[mask], n_bins)
+        total = float(s["counts"][:n_bins].sum()) or 1.0
+        for i in range(n_bins):
+            er = s["event_rates"][i]
+            er_by_bin[i].append(None if np.isnan(er) else round(float(er), 6))
+            ps_by_bin[i].append(round(float(s["counts"][i] / total), 6))
+
+    scores_arr: list[float] = []
+    rates_arr: list[float] = []
+    months_arr: list[Any] = []
+    for m_idx, m in enumerate(months):
+        for bin_i in range(n_bins):
+            er = er_by_bin[bin_i][m_idx]
+            if er is not None:
+                scores_arr.append(float(bin_i))
+                rates_arr.append(er)
+                months_arr.append(m)
+
+    rsi = _rsi(np.array(scores_arr), np.array(rates_arr), np.array(months_arr), threshold) if len(scores_arr) > 1 else 1.0
+
+    return {
+        "months": months.tolist(),
+        "rsi": round(rsi, 4),
+        "event_rates": er_by_bin,
+        "pop_shares": ps_by_bin,
+    }
 
 
 def _num_assign(x: np.ndarray, splits: list[float]) -> np.ndarray:
@@ -94,10 +138,14 @@ class BinEditor:
         bin_specs: dict[str, dict[str, Any]],
         X: pl.DataFrame,
         y: pl.Series,
+        t: pl.Series | None = None,
         weights: pl.Series | None = None,
+        stability_threshold: float = 0.1,
     ) -> None:
         self._y = y.cast(pl.Float64).to_numpy()
         self._w = weights.cast(pl.Float64).to_numpy() if weights is not None else np.ones(len(self._y))
+        self._t: np.ndarray | None = t.to_numpy() if t is not None else None
+        self._threshold = stability_threshold
         self._x: dict[str, np.ndarray] = {}
         self._splits: dict[str, list[float]] = {}
         self._cat_bins: dict[str, dict[str, int]] = {}
@@ -119,10 +167,23 @@ class BinEditor:
     def features(self) -> list[str]:
         return list(self._splits.keys()) + list(self._cat_bins.keys())
 
-    def state(self, feat: str) -> dict[str, Any]:
+    def _base_state(self, feat: str) -> dict[str, Any]:
         if feat in self._splits:
             return _num_state(feat, self._splits[feat], self._x[feat], self._y, self._w)
         return _cat_state(feat, self._cat_bins[feat], self._x[feat], self._y, self._w)
+
+    def _assignments(self, feat: str) -> np.ndarray:
+        if feat in self._splits:
+            return _num_assign(self._x[feat], self._splits[feat])
+        return _cat_assign(self._x[feat], self._cat_bins[feat])
+
+    def state(self, feat: str) -> dict[str, Any]:
+        s = self._base_state(feat)
+        if self._t is not None:
+            s["temporal"] = _temporal_stats(
+                self._y, self._w, self._assignments(feat), s["n_bins"], self._t, self._threshold
+            )
+        return s
 
     def _push(self, feat: str) -> None:
         if feat in self._splits:
@@ -201,7 +262,7 @@ class BinEditor:
                 float(c) for c in np.unique(np.percentile(x_valid, np.linspace(5, 95, 40)))
                 if all(abs(c - s) > min_gap for s in current)
             ]
-            base_iv = self.state(feat)["iv"]
+            base_iv = self._base_state(feat)["iv"]
             pairs_num: list[tuple[float, float]] = sorted(
                 [
                     (
@@ -219,7 +280,7 @@ class BinEditor:
             if n_groups <= 1:
                 return []
             x = self._x[feat]
-            base_iv = self.state(feat)["iv"]
+            base_iv = self._base_state(feat)["iv"]
             pairs_cat: list[tuple[float, tuple[int, int]]] = sorted(
                 [
                     (

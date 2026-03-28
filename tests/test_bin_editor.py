@@ -25,6 +25,18 @@ def editor() -> BinEditor:
     return BinEditor(_BIN_SPECS, X, y)
 
 
+_N_MONTHS = 4
+_T_NP = np.repeat(np.arange(_N_MONTHS), N // _N_MONTHS + 1)[:N]
+
+
+@pytest.fixture
+def editor_temporal() -> BinEditor:
+    X = pl.DataFrame({"num": _X_NP.tolist(), "cat": _CATS.tolist()})
+    y = pl.Series(_Y_NP.tolist())
+    t = pl.Series(_T_NP.tolist())
+    return BinEditor(_BIN_SPECS, X, y, t=t)
+
+
 # --- _bin_stats ---
 
 def test_bin_stats_counts_sum_to_total() -> None:
@@ -357,3 +369,69 @@ def test_accept_compatible_with_woe_transformer(editor: BinEditor) -> None:
     t = WOETransformer(bin_specs=bin_specs).fit(X, y)
     result = t.transform(X)
     assert result.shape[0] == N
+
+
+# --- temporal ---
+
+def test_temporal_state_has_temporal_key(editor_temporal: BinEditor) -> None:
+    s = editor_temporal.state("num")
+    assert "temporal" in s
+
+
+def test_no_temporal_key_without_t(editor: BinEditor) -> None:
+    s = editor.state("num")
+    assert "temporal" not in s
+
+
+def test_temporal_months_length(editor_temporal: BinEditor) -> None:
+    s = editor_temporal.state("num")
+    assert len(s["temporal"]["months"]) == _N_MONTHS
+
+
+def test_temporal_event_rates_structure(editor_temporal: BinEditor) -> None:
+    s = editor_temporal.state("num")
+    n = s["n_bins"]
+    er = s["temporal"]["event_rates"]
+    assert len(er) == n
+    assert all(len(row) == _N_MONTHS for row in er)
+
+
+def test_temporal_pop_shares_structure(editor_temporal: BinEditor) -> None:
+    s = editor_temporal.state("num")
+    n = s["n_bins"]
+    ps = s["temporal"]["pop_shares"]
+    assert len(ps) == n
+    assert all(len(row) == _N_MONTHS for row in ps)
+
+
+def test_temporal_pop_shares_sum_to_one(editor_temporal: BinEditor) -> None:
+    s = editor_temporal.state("num")
+    ps = s["temporal"]["pop_shares"]
+    n_months = _N_MONTHS
+    for m_idx in range(n_months):
+        total = sum(ps[b][m_idx] for b in range(s["n_bins"]))
+        assert total == pytest.approx(1.0, abs=1e-4)
+
+
+def test_temporal_rsi_in_range(editor_temporal: BinEditor) -> None:
+    s = editor_temporal.state("num")
+    rsi = s["temporal"]["rsi"]
+    assert 0.0 <= rsi <= 1.0
+
+
+def test_temporal_rsi_float(editor_temporal: BinEditor) -> None:
+    s = editor_temporal.state("num")
+    assert isinstance(s["temporal"]["rsi"], float)
+
+
+def test_temporal_cat_feature(editor_temporal: BinEditor) -> None:
+    s = editor_temporal.state("cat")
+    assert "temporal" in s
+    assert len(s["temporal"]["event_rates"]) == s["n_bins"]
+
+
+def test_temporal_persists_after_split(editor_temporal: BinEditor) -> None:
+    editor_temporal.split("num", 0.0)
+    s = editor_temporal.state("num")
+    assert "temporal" in s
+    assert s["n_bins"] > 0
