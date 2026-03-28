@@ -36,9 +36,6 @@ def _woe(bads: float, goods: float, total_bads: float, total_goods: float, smoot
     return float(np.log(((bads + smooth) / (total_bads + smooth)) / ((goods + smooth) / (total_goods + smooth))))
 
 
-def _gini(y: np.ndarray, p: np.ndarray, w: np.ndarray | None = None) -> float:
-    return float(2.0 * roc_auc_score(y, p, sample_weight=w) - 1.0)
-
 
 def _rsi(scores: np.ndarray, event_rates: np.ndarray, months: np.ndarray, threshold: float) -> float:
     span = float(event_rates.max() - event_rates.min())
@@ -357,7 +354,7 @@ class StabilityGrouping(BaseEstimator, TransformerMixin):
                 if len(np.unique(y_va[mask])) < 2:
                     continue
                 try:
-                    month_ginis.append(_gini(y_va[mask], p_va[mask], w_va[mask]))
+                    month_ginis.append(float(roc_auc_score(y_va[mask], p_va[mask], sample_weight=w_va[mask])))
                 except Exception:
                     pass
 

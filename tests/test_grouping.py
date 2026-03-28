@@ -2,11 +2,12 @@ import numpy as np
 import polars as pl
 import pytest
 
+from sklearn.metrics import roc_auc_score
+
 from datasci_toolkit.grouping import (
     WOETransformer,
     StabilityGrouping,
     _woe,
-    _gini,
     _rsi,
     _encode_cats,
     _num_bin_spec,
@@ -104,32 +105,26 @@ def test_woe_symmetry() -> None:
     assert abs(pos + neg) < 0.05
 
 
-# --- _gini ---
+# --- roc_auc_score (replaces _gini) ---
 
-def test_gini_perfect_prediction_near_one() -> None:
+def test_auc_perfect_prediction_near_one() -> None:
     y = np.array([0.0, 0.0, 1.0, 1.0])
     p = np.array([0.1, 0.2, 0.8, 0.9])
-    assert _gini(y, p) > 0.95
+    assert roc_auc_score(y, p) > 0.99
 
 
-def test_gini_random_prediction_near_zero() -> None:
+def test_auc_random_prediction_near_half() -> None:
     rng = np.random.default_rng(1)
     y = rng.integers(0, 2, 1000).astype(float)
     p = rng.random(1000)
-    assert abs(_gini(y, p)) < 0.1
+    assert abs(roc_auc_score(y, p) - 0.5) < 0.05
 
 
-def test_gini_returns_float() -> None:
-    y = np.array([0.0, 1.0, 0.0, 1.0])
-    p = np.array([0.2, 0.8, 0.3, 0.7])
-    assert isinstance(_gini(y, p), float)
-
-
-def test_gini_with_weights() -> None:
+def test_auc_with_weights() -> None:
     y = np.array([0.0, 0.0, 1.0, 1.0])
     p = np.array([0.1, 0.2, 0.8, 0.9])
     w = np.array([1.0, 1.0, 1.0, 1.0])
-    assert _gini(y, p, w) > 0.95
+    assert roc_auc_score(y, p, sample_weight=w) > 0.99
 
 
 # --- _rsi ---
