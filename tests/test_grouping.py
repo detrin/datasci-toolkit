@@ -7,7 +7,6 @@ from sklearn.metrics import roc_auc_score
 from datasci_toolkit.grouping import (
     WOETransformer,
     StabilityGrouping,
-    _woe,
     _rsi,
     _encode_cats,
     _num_bin_spec,
@@ -57,52 +56,24 @@ def cat_temporal_df() -> pl.DataFrame:
 
 
 @pytest.fixture
-def woe_num_spec() -> dict:
-    return {
-        "dtype": "float",
-        "bins": [-np.inf, 0.0, np.inf],
-        "woes": [-0.5, 0.5],
-        "nan_woe": 0.0,
-    }
+def lgbm_num_bst(binary_data: dict[str, np.ndarray]) -> object:
+    import lightgbm as lgb
+    x, y, w = binary_data["x"], binary_data["y"], binary_data["w"]
+    from datasci_toolkit.grouping import _LGBM_PARAMS, _train_lgbm
+    params = {**_LGBM_PARAMS, "num_leaves": 3}
+    return _train_lgbm(params, x, y, w, x, y, w, False)
 
 
 @pytest.fixture
-def woe_cat_spec() -> dict:
-    return {
-        "dtype": "category",
-        "bins": {"A": 0, "B": 1},
-        "woes": [-0.3, 0.3],
-        "unknown_woe": 0.0,
-    }
-
-
-# --- _woe ---
-
-def test_woe_high_bad_rate_positive() -> None:
-    result = _woe(80.0, 20.0, 100.0, 100.0)
-    assert result > 0.0
-
-
-def test_woe_low_bad_rate_negative() -> None:
-    result = _woe(20.0, 80.0, 100.0, 100.0)
-    assert result < 0.0
-
-
-def test_woe_equal_rates_near_zero() -> None:
-    result = _woe(50.0, 50.0, 100.0, 100.0)
-    assert abs(result) < 0.1
-
-
-def test_woe_zero_bads_uses_smooth() -> None:
-    result = _woe(0.0, 100.0, 100.0, 100.0)
-    assert isinstance(result, float)
-    assert result < 0.0
-
-
-def test_woe_symmetry() -> None:
-    pos = _woe(80.0, 20.0, 100.0, 100.0)
-    neg = _woe(20.0, 80.0, 100.0, 100.0)
-    assert abs(pos + neg) < 0.05
+def lgbm_cat_bst(binary_data: dict[str, np.ndarray]) -> tuple[object, np.ndarray, np.ndarray]:
+    from datasci_toolkit.grouping import _LGBM_PARAMS, _encode_cats, _train_lgbm
+    cats = np.array(["A", "B", "C"] * (400 // 3) + ["A"])
+    y = np.array([1.0 if c == "A" else 0.0 for c in cats])
+    w = np.ones(len(cats))
+    enc, mapping = _encode_cats(cats)
+    params = {**_LGBM_PARAMS, "num_leaves": 2}
+    bst = _train_lgbm(params, enc, y, w, enc, y, w, True)
+    return bst, enc, cats
 
 
 # --- roc_auc_score (replaces _gini) ---
@@ -144,10 +115,6 @@ def test_rsi_unstable_below_one() -> None:
 
 
 def test_rsi_threshold_corrects_small_flip() -> None:
-    # 3 bins: anchor at 0.80, two middle bins flip ranks between months
-    # month 1: 0.1→0.10, 0.5→0.20, 0.9→0.80
-    # month 2: 0.1→0.21, 0.5→0.20, 0.9→0.80  (0.1 and 0.5 swap, but leap=0.11 vs span=0.70)
-    # all leaps / span < 0.5 → all bins treated as stable → RSI = 1.0
     scores = np.array([0.1, 0.5, 0.9, 0.1, 0.5, 0.9])
     rates = np.array([0.10, 0.20, 0.80, 0.21, 0.20, 0.80])
     months = np.array([1, 1, 1, 2, 2, 2])
@@ -192,48 +159,105 @@ def test_encode_cats_uses_provided_mapping() -> None:
     assert enc2[0] == mapping["B"]
 
 
+# --- _num_bin_spec ---
+
+def test_num_bin_spec_returns_float_dtype(lgbm_num_bst: object, binary_data: dict[str, np.ndarray]) -> None:
+    spec = _num_bin_spec(lgbm_num_bst, binary_data["x"])
+    assert spec["dtype"] == "float"
+
+
+def test_num_bin_spec_bins_are_sorted(lgbm_num_bst: object, binary_data: dict[str, np.ndarray]) -> None:
+    spec = _num_bin_spec(lgbm_num_bst, binary_data["x"])
+    bins = spec["bins"]
+    assert bins == sorted(bins)
+
+
+def test_num_bin_spec_bins_bounded(lgbm_num_bst: object, binary_data: dict[str, np.ndarray]) -> None:
+    spec = _num_bin_spec(lgbm_num_bst, binary_data["x"])
+    assert spec["bins"][0] == -np.inf
+    assert spec["bins"][-1] == np.inf
+
+
+# --- _cat_bin_spec ---
+
+def test_cat_bin_spec_returns_category_dtype(lgbm_cat_bst: tuple[object, np.ndarray, np.ndarray]) -> None:
+    bst, enc, orig = lgbm_cat_bst
+    spec = _cat_bin_spec(bst, enc, orig)
+    assert spec["dtype"] == "category"
+
+
+def test_cat_bin_spec_bins_is_dict(lgbm_cat_bst: tuple[object, np.ndarray, np.ndarray]) -> None:
+    bst, enc, orig = lgbm_cat_bst
+    spec = _cat_bin_spec(bst, enc, orig)
+    assert isinstance(spec["bins"], dict)
+
+
+def test_cat_bin_spec_all_cats_mapped(lgbm_cat_bst: tuple[object, np.ndarray, np.ndarray]) -> None:
+    bst, enc, orig = lgbm_cat_bst
+    spec = _cat_bin_spec(bst, enc, orig)
+    assert set(spec["bins"].keys()) == {"A", "B", "C"}
+
+
 # --- WOETransformer ---
 
-def test_woe_transformer_numeric(woe_num_spec: dict) -> None:
-    X = pl.DataFrame({"feat": [-1.0, 1.0, None]})
-    t = WOETransformer(bins_data={"feat": woe_num_spec}).fit(X)
+def test_woe_transformer_numeric_fit_transform() -> None:
+    X = pl.DataFrame({"feat": [-1.0, 0.5, 1.5, -0.5]})
+    y = pl.Series([0.0, 1.0, 1.0, 0.0])
+    spec = {"feat": {"dtype": "float", "bins": [-np.inf, 0.0, np.inf]}}
+    t = WOETransformer(bin_specs=spec).fit(X, y)
     result = t.transform(X)
-    assert result["feat"][0] == pytest.approx(-0.5)
-    assert result["feat"][1] == pytest.approx(0.5)
-    assert result["feat"][2] == pytest.approx(0.0)
+    assert result.shape == (4, 1)
+    assert result["feat"].dtype == pl.Float64
 
 
-def test_woe_transformer_categorical(woe_cat_spec: dict) -> None:
-    X = pl.DataFrame({"feat": ["A", "B", "Z"]})
-    t = WOETransformer(bins_data={"feat": woe_cat_spec}).fit(X)
+def test_woe_transformer_categorical_fit_transform() -> None:
+    X = pl.DataFrame({"feat": ["A", "B", "A", "B"]})
+    y = pl.Series([1.0, 0.0, 1.0, 0.0])
+    spec = {"feat": {"dtype": "category", "bins": {"A": 0, "B": 1}}}
+    t = WOETransformer(bin_specs=spec).fit(X, y)
     result = t.transform(X)
-    assert result["feat"][0] == pytest.approx(-0.3)
-    assert result["feat"][1] == pytest.approx(0.3)
-    assert result["feat"][2] == pytest.approx(0.0)
+    assert result.shape == (4, 1)
 
 
-def test_woe_transformer_missing_column_skipped(woe_num_spec: dict) -> None:
+def test_woe_transformer_missing_column_skipped() -> None:
     X = pl.DataFrame({"other": [1.0, 2.0]})
-    t = WOETransformer(bins_data={"feat": woe_num_spec}).fit(X)
+    y = pl.Series([0.0, 1.0])
+    spec = {"feat": {"dtype": "float", "bins": [-np.inf, 0.0, np.inf]}}
+    t = WOETransformer(bin_specs=spec).fit(X, y)
     result = t.transform(X)
     assert "feat" not in result.columns
 
 
 def test_woe_transformer_not_fitted_raises() -> None:
     with pytest.raises(Exception):
-        WOETransformer(bins_data={}).transform(pl.DataFrame({"x": [1.0]}))
+        WOETransformer(bin_specs={}).transform(pl.DataFrame({"x": [1.0]}))
 
 
-def test_woe_transformer_no_bins_data_raises() -> None:
+def test_woe_transformer_no_bin_specs_raises() -> None:
     with pytest.raises(ValueError):
-        WOETransformer().fit(pl.DataFrame({"x": [1.0]}))
+        WOETransformer().fit(pl.DataFrame({"x": [1.0]}), pl.Series([0.0]))
 
 
-def test_woe_transformer_output_shape(woe_num_spec: dict, woe_cat_spec: dict) -> None:
-    X = pl.DataFrame({"num": [0.5, -0.5], "cat": ["A", "B"]})
-    t = WOETransformer(bins_data={"num": woe_num_spec, "cat": woe_cat_spec}).fit(X)
+def test_woe_transformer_output_shape() -> None:
+    X = pl.DataFrame({"a": [0.5, -0.5], "b": [1.5, -1.5]})
+    y = pl.Series([1.0, 0.0])
+    spec = {
+        "a": {"dtype": "float", "bins": [-np.inf, 0.0, np.inf]},
+        "b": {"dtype": "float", "bins": [-np.inf, 0.0, np.inf]},
+    }
+    t = WOETransformer(bin_specs=spec).fit(X, y)
     result = t.transform(X)
     assert result.shape == (2, 2)
+
+
+def test_woe_transformer_with_weights() -> None:
+    X = pl.DataFrame({"feat": [-1.0, 0.5, 1.5, -0.5]})
+    y = pl.Series([0.0, 1.0, 1.0, 0.0])
+    w = pl.Series([1.0, 1.0, 1.0, 1.0])
+    spec = {"feat": {"dtype": "float", "bins": [-np.inf, 0.0, np.inf]}}
+    t = WOETransformer(bin_specs=spec).fit(X, y, w)
+    result = t.transform(X)
+    assert result.shape == (4, 1)
 
 
 # --- StabilityGrouping ---
@@ -259,7 +283,7 @@ def test_stability_grouping_bins_data_populated(temporal_df: pl.DataFrame) -> No
         train.select("feat"), train["target"], train["month"],
         val.select("feat"), val["target"], val["month"],
     )
-    assert "feat" in sg.bins_data_ or "feat" in sg.excluded_
+    assert "feat" in sg.bin_specs_ or "feat" in sg.excluded_
 
 
 def test_stability_grouping_transform_output_type(temporal_df: pl.DataFrame) -> None:
@@ -270,7 +294,7 @@ def test_stability_grouping_transform_output_type(temporal_df: pl.DataFrame) -> 
         train.select("feat"), train["target"], train["month"],
         val.select("feat"), val["target"], val["month"],
     )
-    if sg.bins_data_:
+    if sg.bin_specs_:
         result = sg.transform(train.select("feat"))
         assert isinstance(result, pl.DataFrame)
 
@@ -283,7 +307,7 @@ def test_stability_grouping_transform_row_count(temporal_df: pl.DataFrame) -> No
         train.select("feat"), train["target"], train["month"],
         val.select("feat"), val["target"], val["month"],
     )
-    if sg.bins_data_:
+    if sg.bin_specs_:
         result = sg.transform(train.select("feat"))
         assert len(result) == len(train)
 
@@ -312,7 +336,7 @@ def test_stability_grouping_categorical(cat_temporal_df: pl.DataFrame) -> None:
         train.select("feat"), train["target"], train["month"],
         val.select("feat"), val["target"], val["month"],
     )
-    assert "feat" in sg.bins_data_ or "feat" in sg.excluded_
+    assert "feat" in sg.bin_specs_ or "feat" in sg.excluded_
 
 
 def test_stability_grouping_must_have_not_excluded(temporal_df: pl.DataFrame) -> None:
@@ -348,6 +372,6 @@ def test_stability_grouping_woe_values_finite(temporal_df: pl.DataFrame) -> None
         train.select("feat"), train["target"], train["month"],
         val.select("feat"), val["target"], val["month"],
     )
-    if sg.bins_data_:
+    if sg.bin_specs_:
         result = sg.transform(train.select("feat"))
         assert result["feat"].is_finite().all()

@@ -5,6 +5,7 @@ from typing import Any
 
 import numpy as np
 import polars as pl
+from optbinning import OptimalBinning
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.metrics import roc_auc_score
 from sklearn.utils.validation import check_is_fitted
@@ -30,11 +31,6 @@ _LGBM_PARAMS: dict[str, Any] = {
     "device_type": "cpu",
     "n_jobs": -1,
 }
-
-
-def _woe(bads: float, goods: float, total_bads: float, total_goods: float, smooth: float = 0.001) -> float:
-    return float(np.log(((bads + smooth) / (total_bads + smooth)) / ((goods + smooth) / (total_goods + smooth))))
-
 
 
 def _rsi(scores: np.ndarray, event_rates: np.ndarray, months: np.ndarray, threshold: float) -> float:
@@ -109,108 +105,86 @@ def _train_lgbm(
     )
 
 
-def _num_bin_spec(
-    bst: Any,
-    x: np.ndarray,
-    y: np.ndarray,
-    w: np.ndarray,
-    nan_woe: float,
-    smooth: float,
-) -> dict[str, Any]:
+def _num_bin_spec(bst: Any, x: np.ndarray) -> dict[str, Any]:
     non_null = ~np.isnan(x)
     x_obs = x[non_null]
     p = bst.predict(x_obs.reshape(-1, 1), num_iteration=1)
-    y_obs, w_obs = y[non_null], w[non_null]
-    total_bads = float((y_obs * w_obs).sum())
-    total_goods = float(((1.0 - y_obs) * w_obs).sum())
 
-    buckets = []
-    for score in sorted(np.unique(p)):
-        mask = p == score
-        bads = float((y_obs[mask] * w_obs[mask]).sum())
-        goods = float(((1.0 - y_obs[mask]) * w_obs[mask]).sum())
-        buckets.append({
-            "min": float(x_obs[mask].min()),
-            "max": float(x_obs[mask].max()),
-            "woe": _woe(bads, goods, total_bads, total_goods, smooth),
-        })
-
-    buckets.sort(key=lambda b: b["max"])
+    buckets = sorted(
+        [{"min": float(x_obs[p == s].min()), "max": float(x_obs[p == s].max())} for s in np.unique(p)],
+        key=lambda b: b["max"],
+    )
     bins: list[float] = (
         [-np.inf]
         + [(b["max"] + nb["min"]) / 2.0 for b, nb in zip(buckets[:-1], buckets[1:])]
         + [np.inf]
     )
-    return {
-        "dtype": "float",
-        "bins": bins,
-        "woes": [b["woe"] for b in buckets],
-        "nan_woe": nan_woe,
-    }
+    return {"dtype": "float", "bins": bins}
 
 
-def _cat_bin_spec(
-    bst: Any,
-    x_enc: np.ndarray,
-    x_orig: np.ndarray,
-    y: np.ndarray,
-    w: np.ndarray,
-    smooth: float,
-) -> dict[str, Any]:
+def _cat_bin_spec(bst: Any, x_enc: np.ndarray, x_orig: np.ndarray) -> dict[str, Any]:
     non_null = ~np.isnan(x_enc)
     p = bst.predict(x_enc[non_null].reshape(-1, 1), num_iteration=1)
-    y_obs, w_obs = y[non_null], w[non_null]
     x_obs = x_orig[non_null]
-    total_bads = float((y_obs * w_obs).sum())
-    total_goods = float(((1.0 - y_obs) * w_obs).sum())
 
-    woes: list[float] = []
     bins: dict[str, int] = {}
     for bucket_idx, score in enumerate(sorted(np.unique(p))):
-        mask = p == score
-        bads = float((y_obs[mask] * w_obs[mask]).sum())
-        goods = float(((1.0 - y_obs[mask]) * w_obs[mask]).sum())
-        woes.append(_woe(bads, goods, total_bads, total_goods, smooth))
-        for cat in np.unique(x_obs[mask]):
+        for cat in np.unique(x_obs[p == score]):
             bins[str(cat)] = bucket_idx
 
-    return {"dtype": "category", "bins": bins, "woes": woes, "unknown_woe": 0.0}
+    return {"dtype": "category", "bins": bins}
 
 
 class WOETransformer(BaseEstimator, TransformerMixin):
-    def __init__(self, bins_data: dict[str, dict[str, Any]] | None = None) -> None:
-        self.bins_data = bins_data
+    def __init__(self, bin_specs: dict[str, dict[str, Any]] | None = None) -> None:
+        self.bin_specs = bin_specs
 
-    def fit(self, X: pl.DataFrame, y: object = None) -> "WOETransformer":
-        if self.bins_data is None:
-            raise ValueError("bins_data must be provided to WOETransformer")
-        self.bins_data_: dict[str, dict[str, Any]] = self.bins_data
-        self.feature_names_in_: list[str] = list(self.bins_data_.keys())
+    def fit(self, X: pl.DataFrame, y: pl.Series, weights: pl.Series | None = None) -> "WOETransformer":
+        if self.bin_specs is None:
+            raise ValueError("bin_specs must be provided to WOETransformer")
+        y_np = y.cast(pl.Float64).to_numpy()
+        w_np = weights.cast(pl.Float64).to_numpy() if weights is not None else None
+        self.binners_: dict[str, OptimalBinning] = {}
+        for feat, spec in self.bin_specs.items():
+            if feat not in X.columns:
+                continue
+            if spec["dtype"] == "float":
+                splits = [s for s in spec["bins"][1:-1] if np.isfinite(s)]
+                x_np = X[feat].cast(pl.Float64).to_numpy()
+                binner = OptimalBinning(
+                    name=feat,
+                    dtype="numerical",
+                    user_splits=splits if splits else None,
+                )
+            else:
+                cat_bins: dict[str, int] = spec["bins"]
+                groups: dict[int, list[str]] = {}
+                for cat, idx in cat_bins.items():
+                    groups.setdefault(idx, []).append(cat)
+                user_splits = [groups[i] for i in sorted(groups)]
+                x_np = X[feat].cast(pl.Utf8).to_numpy().astype(str)
+                binner = OptimalBinning(
+                    name=feat,
+                    dtype="categorical",
+                    user_splits=user_splits,
+                )
+            binner.fit(x_np, y_np, sample_weight=w_np)
+            self.binners_[feat] = binner
+        self.feature_names_in_: list[str] = list(self.bin_specs.keys())
         return self
 
     def transform(self, X: pl.DataFrame) -> pl.DataFrame:
         check_is_fitted(self)
         cols: dict[str, list[float]] = {}
-        for feat, spec in self.bins_data_.items():
+        for feat, binner in self.binners_.items():
             if feat not in X.columns:
                 continue
-            s = X[feat]
+            spec = self.bin_specs[feat]  # type: ignore[index]
             if spec["dtype"] == "float":
-                x_np = s.cast(pl.Float64).to_numpy()
-                boundaries = np.array(spec["bins"][1:-1], dtype=float)
-                woe_arr = np.array(spec["woes"], dtype=float)
-                nan_woe: float = spec["nan_woe"]
-                idx = np.clip(np.digitize(x_np, boundaries), 0, len(woe_arr) - 1)
-                result = np.where(np.isnan(x_np), nan_woe, woe_arr[idx])
-                cols[feat] = result.tolist()
+                x_np = X[feat].cast(pl.Float64).to_numpy()
             else:
-                cat_bins: dict[str, int] = spec["bins"]
-                woe_list: list[float] = spec["woes"]
-                unknown_woe: float = spec["unknown_woe"]
-                cols[feat] = [
-                    woe_list[cat_bins[str(v)]] if str(v) in cat_bins else unknown_woe
-                    for v in s.to_list()
-                ]
+                x_np = X[feat].cast(pl.Utf8).to_numpy().astype(str)
+            cols[feat] = binner.transform(x_np, metric="woe").tolist()
         return pl.DataFrame(cols)
 
 
@@ -223,7 +197,6 @@ class StabilityGrouping(BaseEstimator, TransformerMixin):
         min_leaf_minority: int = 100,
         important_minorities: list[str] | None = None,
         must_have: list[str] | None = None,
-        woe_smooth: float = 0.001,
     ) -> None:
         self.max_bins = max_bins
         self.stability_threshold = stability_threshold
@@ -231,7 +204,6 @@ class StabilityGrouping(BaseEstimator, TransformerMixin):
         self.min_leaf_minority = min_leaf_minority
         self.important_minorities = important_minorities
         self.must_have = must_have
-        self.woe_smooth = woe_smooth
 
     def _is_categorical(self, s: pl.Series) -> bool:
         return s.dtype in (pl.Utf8, pl.String, pl.Categorical, pl.Enum)
@@ -260,7 +232,7 @@ class StabilityGrouping(BaseEstimator, TransformerMixin):
         w_tr = weights_train.cast(pl.Float64).to_numpy() if weights_train is not None else np.ones(len(y_tr))
         w_va = weights_val.cast(pl.Float64).to_numpy() if weights_val is not None else np.ones(len(y_va))
 
-        self.bins_data_: dict[str, dict[str, Any]] = {}
+        bin_specs: dict[str, dict[str, Any]] = {}
         self.excluded_: list[str] = []
 
         for feat in X_train.columns:
@@ -292,26 +264,21 @@ class StabilityGrouping(BaseEstimator, TransformerMixin):
                     bst = _train_lgbm(params, x_tr_enc, y_tr, w_tr, x_va_enc, y_va, w_va, is_cat)
 
                 if is_cat:
-                    spec = _cat_bin_spec(bst, x_tr_enc, x_tr_orig, y_tr, w_tr, self.woe_smooth)
+                    spec = _cat_bin_spec(bst, x_tr_enc, x_tr_orig)
                 else:
-                    null_mask = np.isnan(x_tr_enc)
-                    if null_mask.any():
-                        bads_null = float((y_tr[null_mask] * w_tr[null_mask]).sum())
-                        goods_null = float(((1.0 - y_tr[null_mask]) * w_tr[null_mask]).sum())
-                        total_bads = float((y_tr * w_tr).sum())
-                        total_goods = float(((1.0 - y_tr) * w_tr).sum())
-                        nan_woe = _woe(bads_null, goods_null, total_bads, total_goods, self.woe_smooth)
-                    else:
-                        nan_woe = 0.0
-                    spec = _num_bin_spec(bst, x_tr_enc, y_tr, w_tr, nan_woe, self.woe_smooth)
+                    spec = _num_bin_spec(bst, x_tr_enc)
 
-                self.bins_data_[feat] = spec
+                bin_specs[feat] = spec
 
+        self.bin_specs_: dict[str, dict[str, Any]] = bin_specs
+        self.transformer_: WOETransformer = WOETransformer(bin_specs=bin_specs).fit(
+            X_train, y_train, weights_train
+        )
         return self
 
     def transform(self, X: pl.DataFrame) -> pl.DataFrame:
         check_is_fitted(self)
-        return WOETransformer(bins_data=self.bins_data_).fit(X).transform(X)
+        return self.transformer_.transform(X)
 
     def ungroupable(self) -> list[str]:
         check_is_fitted(self)
