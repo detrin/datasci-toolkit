@@ -4,7 +4,7 @@ import pytest
 
 from datasci_toolkit.reject_inference import (
     TargetImputer,
-    RejectInferenceImputer,
+    KNNLabelImputer,
     _dist_weights,
 )
 
@@ -14,7 +14,7 @@ RNG = np.random.default_rng(0)
 # --- fixtures ---
 
 @pytest.fixture
-def accept_df() -> tuple[pl.DataFrame, pl.Series]:
+def labeled_df() -> tuple[pl.DataFrame, pl.Series]:
     n = 200
     X = RNG.normal(0, 1, (n, 4))
     y = (X[:, 0] + X[:, 1] > 0).astype(float)
@@ -22,11 +22,10 @@ def accept_df() -> tuple[pl.DataFrame, pl.Series]:
 
 
 @pytest.fixture
-def reject_df(accept_df: tuple[pl.DataFrame, pl.Series]) -> pl.DataFrame:
-    X, _ = accept_df
+def unlabeled_df() -> pl.DataFrame:
     n = 50
-    X_rej = RNG.normal(0, 1, (n, 4))
-    return pl.DataFrame({f"f{i}": X_rej[:, i].tolist() for i in range(4)})
+    X = RNG.normal(0, 1, (n, 4))
+    return pl.DataFrame({f"f{i}": X[:, i].tolist() for i in range(4)})
 
 
 # --- _dist_weights ---
@@ -143,109 +142,139 @@ def test_target_imputer_with_polars_weights() -> None:
     assert result["weight"].to_list() == pytest.approx([1.0, 2.0])
 
 
-# --- RejectInferenceImputer ---
+# --- KNNLabelImputer ---
 
-def test_reject_inference_fit_returns_self(
-    accept_df: tuple[pl.DataFrame, pl.Series],
+def test_knn_label_imputer_fit_returns_self(
+    labeled_df: tuple[pl.DataFrame, pl.Series],
 ) -> None:
-    X, y = accept_df
-    ri = RejectInferenceImputer(n_neighbors=5)
-    assert ri.fit(X, y) is ri
+    X, y = labeled_df
+    ki = KNNLabelImputer(n_neighbors=5)
+    assert ki.fit(X, y) is ki
 
 
-def test_reject_inference_transform_shape(
-    accept_df: tuple[pl.DataFrame, pl.Series],
-    reject_df: pl.DataFrame,
+def test_knn_label_imputer_transform_shape_randomized(
+    labeled_df: tuple[pl.DataFrame, pl.Series],
+    unlabeled_df: pl.DataFrame,
 ) -> None:
-    X, y = accept_df
-    ri = RejectInferenceImputer(n_neighbors=5, method="randomized").fit(X, y)
-    result = ri.transform(reject_df)
-    assert len(result) == len(reject_df)
+    X, y = labeled_df
+    ki = KNNLabelImputer(n_neighbors=5, method="randomized").fit(X, y)
+    result = ki.transform(unlabeled_df)
+    assert len(result) == len(unlabeled_df)
 
 
-def test_reject_inference_weighted_doubles_rows(
-    accept_df: tuple[pl.DataFrame, pl.Series],
-    reject_df: pl.DataFrame,
+def test_knn_label_imputer_weighted_doubles_rows(
+    labeled_df: tuple[pl.DataFrame, pl.Series],
+    unlabeled_df: pl.DataFrame,
 ) -> None:
-    X, y = accept_df
-    ri = RejectInferenceImputer(n_neighbors=5, method="weighted").fit(X, y)
-    result = ri.transform(reject_df)
-    assert len(result) == 2 * len(reject_df)
+    X, y = labeled_df
+    ki = KNNLabelImputer(n_neighbors=5, method="weighted").fit(X, y)
+    result = ki.transform(unlabeled_df)
+    assert len(result) == 2 * len(unlabeled_df)
 
 
-def test_reject_inference_output_columns(
-    accept_df: tuple[pl.DataFrame, pl.Series],
-    reject_df: pl.DataFrame,
+def test_knn_label_imputer_output_columns(
+    labeled_df: tuple[pl.DataFrame, pl.Series],
+    unlabeled_df: pl.DataFrame,
 ) -> None:
-    X, y = accept_df
-    ri = RejectInferenceImputer(n_neighbors=5).fit(X, y)
-    result = ri.transform(reject_df)
+    X, y = labeled_df
+    ki = KNNLabelImputer(n_neighbors=5).fit(X, y)
+    result = ki.transform(unlabeled_df)
     assert set(result.columns) == {"target", "weight"}
 
 
-def test_reject_inference_proba_range(
-    accept_df: tuple[pl.DataFrame, pl.Series],
-    reject_df: pl.DataFrame,
+def test_knn_label_imputer_proba_range(
+    labeled_df: tuple[pl.DataFrame, pl.Series],
+    unlabeled_df: pl.DataFrame,
 ) -> None:
-    X, y = accept_df
-    ri = RejectInferenceImputer(n_neighbors=5).fit(X, y)
-    proba = ri.predict_proba(reject_df)
+    X, y = labeled_df
+    ki = KNNLabelImputer(n_neighbors=5).fit(X, y)
+    proba = ki.predict_proba(unlabeled_df)
     assert (proba >= 0.0).all() and (proba <= 1.0).all()
 
 
-def test_reject_inference_proba_near_accept_rate(
-    accept_df: tuple[pl.DataFrame, pl.Series],
+def test_knn_label_imputer_proba_near_labeled_rate(
+    labeled_df: tuple[pl.DataFrame, pl.Series],
 ) -> None:
-    X, y = accept_df
-    ri = RejectInferenceImputer(n_neighbors=20).fit(X, y)
-    proba = ri.predict_proba(X)
-    accept_rate = float(y.cast(pl.Float64).mean())
-    assert abs(float(proba.mean()) - accept_rate) < 0.1
+    X, y = labeled_df
+    ki = KNNLabelImputer(n_neighbors=20).fit(X, y)
+    proba = ki.predict_proba(X)
+    labeled_rate = float(y.cast(pl.Float64).mean())
+    assert abs(float(proba.mean()) - labeled_rate) < 0.1
 
 
-def test_reject_inference_high_event_region_gets_high_proba(
-    accept_df: tuple[pl.DataFrame, pl.Series],
+def test_knn_label_imputer_high_event_region_gets_high_proba(
+    labeled_df: tuple[pl.DataFrame, pl.Series],
 ) -> None:
-    X, y = accept_df
-    ri = RejectInferenceImputer(n_neighbors=10).fit(X, y)
+    X, y = labeled_df
+    ki = KNNLabelImputer(n_neighbors=10).fit(X, y)
     X_high = X.filter(pl.col("f0") > 1.0)
     X_low = X.filter(pl.col("f0") < -1.0)
     if len(X_high) > 5 and len(X_low) > 5:
-        assert ri.predict_proba(X_high).mean() > ri.predict_proba(X_low).mean()
+        assert ki.predict_proba(X_high).mean() > ki.predict_proba(X_low).mean()
 
 
-def test_reject_inference_with_weights(
-    accept_df: tuple[pl.DataFrame, pl.Series],
-    reject_df: pl.DataFrame,
+def test_knn_label_imputer_with_weights(
+    labeled_df: tuple[pl.DataFrame, pl.Series],
+    unlabeled_df: pl.DataFrame,
 ) -> None:
-    X, y = accept_df
-    w_acc = pl.Series(np.ones(len(X)))
-    w_rej = pl.Series(np.ones(len(reject_df)) * 2.0)
-    ri = RejectInferenceImputer(n_neighbors=5, method="cutoff").fit(X, y, w_acc)
-    result = ri.transform(reject_df, w_rej)
+    X, y = labeled_df
+    w_lab = pl.Series(np.ones(len(X)))
+    w_unl = pl.Series(np.ones(len(unlabeled_df)) * 2.0)
+    ki = KNNLabelImputer(n_neighbors=5, method="cutoff").fit(X, y, w_lab)
+    result = ki.transform(unlabeled_df, w_unl)
     assert (result["weight"] == 2.0).all()
 
 
-def test_reject_inference_not_fitted_raises(reject_df: pl.DataFrame) -> None:
+def test_knn_label_imputer_not_fitted_raises(unlabeled_df: pl.DataFrame) -> None:
     with pytest.raises(Exception):
-        RejectInferenceImputer().transform(reject_df)
+        KNNLabelImputer().transform(unlabeled_df)
 
 
-def test_reject_inference_n_neighbors_capped(
-    accept_df: tuple[pl.DataFrame, pl.Series],
-    reject_df: pl.DataFrame,
+def test_knn_label_imputer_n_neighbors_capped(
+    labeled_df: tuple[pl.DataFrame, pl.Series],
+    unlabeled_df: pl.DataFrame,
 ) -> None:
-    X, y = accept_df
-    ri = RejectInferenceImputer(n_neighbors=10000, method="randomized").fit(X, y)
-    result = ri.transform(reject_df)
-    assert len(result) == len(reject_df)
+    X, y = labeled_df
+    ki = KNNLabelImputer(n_neighbors=10000, method="randomized").fit(X, y)
+    result = ki.transform(unlabeled_df)
+    assert len(result) == len(unlabeled_df)
 
 
-def test_reject_inference_cutoff_binary_targets(
-    accept_df: tuple[pl.DataFrame, pl.Series],
-    reject_df: pl.DataFrame,
+def test_knn_label_imputer_cutoff_binary_targets(
+    labeled_df: tuple[pl.DataFrame, pl.Series],
+    unlabeled_df: pl.DataFrame,
 ) -> None:
-    X, y = accept_df
-    ri = RejectInferenceImputer(n_neighbors=5, method="cutoff").fit(X, y)
-    result = ri.transform(reject_df)
+    X, y = labeled_df
+    ki = KNNLabelImputer(n_neighbors=5, method="cutoff").fit(X, y)
+    result = ki.transform(unlabeled_df)
     assert set(result["target"].unique().to_list()).issubset({0.0, 1.0})
+
+
+def test_knn_label_imputer_manhattan_metric(
+    labeled_df: tuple[pl.DataFrame, pl.Series],
+    unlabeled_df: pl.DataFrame,
+) -> None:
+    X, y = labeled_df
+    ki = KNNLabelImputer(n_neighbors=5, metric="manhattan").fit(X, y)
+    proba = ki.predict_proba(unlabeled_df)
+    assert (proba >= 0.0).all() and (proba <= 1.0).all()
+
+
+def test_knn_label_imputer_cosine_metric(
+    labeled_df: tuple[pl.DataFrame, pl.Series],
+    unlabeled_df: pl.DataFrame,
+) -> None:
+    X, y = labeled_df
+    ki = KNNLabelImputer(n_neighbors=5, metric="cosine").fit(X, y)
+    proba = ki.predict_proba(unlabeled_df)
+    assert (proba >= 0.0).all() and (proba <= 1.0).all()
+
+
+def test_knn_label_imputer_different_metrics_differ(
+    labeled_df: tuple[pl.DataFrame, pl.Series],
+    unlabeled_df: pl.DataFrame,
+) -> None:
+    X, y = labeled_df
+    p_l2 = KNNLabelImputer(n_neighbors=5, metric="minkowski").fit(X, y).predict_proba(unlabeled_df)
+    p_cos = KNNLabelImputer(n_neighbors=5, metric="cosine").fit(X, y).predict_proba(unlabeled_df)
+    assert not np.allclose(p_l2, p_cos)
