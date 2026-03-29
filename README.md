@@ -40,9 +40,25 @@ model = AUCStepwiseLogit(max_predictors=10, max_correlation=0.8).fit(
 )
 ```
 
+## Install
+
+```bash
+pip install datasci-toolkit
+```
+
 ## Documentation
 
 **[detrin.github.io/datasci-toolkit](https://detrin.github.io/datasci-toolkit)**
+
+| Notebook | Topic |
+|---|---|
+| [01 Stability](https://detrin.github.io/datasci-toolkit/tutorials/stability/) | PSI drift detection, StabilityMonitor, ESI |
+| [02 Grouping](https://detrin.github.io/datasci-toolkit/tutorials/grouping/) | StabilityGrouping, WOETransformer |
+| [03 Metrics](https://detrin.github.io/datasci-toolkit/tutorials/metrics/) | Gini, KS, lift, IV, bootstrap CI, period breakdowns |
+| [04 Model selection](https://detrin.github.io/datasci-toolkit/tutorials/model_selection/) | AUCStepwiseLogit, correlation filter, CV mode |
+| [05 Label imputation](https://detrin.github.io/datasci-toolkit/tutorials/label_imputation/) | KNNLabelImputer, TargetImputer |
+| [06 Bin editor](https://detrin.github.io/datasci-toolkit/tutorials/bin_editor/) | BinEditor headless API, BinEditorWidget |
+| [07 Variable clustering](https://detrin.github.io/datasci-toolkit/tutorials/variable_clustering/) | CorrVarClus dendrogram, best_features |
 
 ## Stack
 
