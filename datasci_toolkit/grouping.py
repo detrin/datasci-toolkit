@@ -135,6 +135,53 @@ def _cat_bin_spec(bst: Any, x_enc: np.ndarray, x_orig: np.ndarray) -> dict[str, 
     return {"dtype": "category", "bins": bins}
 
 
+def _monthly_gini(
+    p_va: np.ndarray,
+    y_va: np.ndarray,
+    w_va: np.ndarray,
+    t_va: np.ndarray,
+) -> float:
+    scores: list[float] = []
+    for m in np.unique(t_va):
+        mask = t_va == m
+        if len(np.unique(y_va[mask])) < 2:
+            continue
+        try:
+            scores.append(float(roc_auc_score(y_va[mask], p_va[mask], sample_weight=w_va[mask])))
+        except Exception:
+            pass
+    return float(np.mean(scores)) if scores else 0.0
+
+
+def _bins_rsi(
+    p_va: np.ndarray,
+    y_va: np.ndarray,
+    w_va: np.ndarray,
+    t_va: np.ndarray,
+    threshold: float,
+) -> float:
+    scores_all: list[float] = []
+    rates_all: list[float] = []
+    months_all: list[Any] = []
+    for m in np.unique(t_va):
+        mask = t_va == m
+        p_m, y_m, w_m = p_va[mask], y_va[mask], w_va[mask]
+        for s in np.unique(p_m):
+            smask = p_m == s
+            w_sum = float(w_m[smask].sum())
+            if w_sum == 0.0:
+                continue
+            scores_all.append(float(s))
+            rates_all.append(float((y_m[smask] * w_m[smask]).sum() / w_sum))
+            months_all.append(m)
+    return _rsi(
+        np.array(scores_all),
+        np.array(rates_all),
+        np.array(months_all),
+        threshold,
+    )
+
+
 class WOETransformer(BaseEstimator, TransformerMixin):
     def __init__(self, bin_specs: dict[str, dict[str, Any]] | None = None) -> None:
         self.bin_specs = bin_specs
@@ -175,11 +222,12 @@ class WOETransformer(BaseEstimator, TransformerMixin):
 
     def transform(self, X: pl.DataFrame) -> pl.DataFrame:
         check_is_fitted(self)
+        assert self.bin_specs is not None
         cols: dict[str, list[float]] = {}
         for feat, binner in self.binners_.items():
             if feat not in X.columns:
                 continue
-            spec = self.bin_specs[feat]  # type: ignore[index]
+            spec = self.bin_specs[feat]
             if spec["dtype"] == "float":
                 x_np = X[feat].cast(pl.Float64).to_numpy()
             else:
@@ -263,11 +311,7 @@ class StabilityGrouping(BaseEstimator, TransformerMixin):
                     warnings.simplefilter("ignore")
                     bst = _train_lgbm(params, x_tr_enc, y_tr, w_tr, x_va_enc, y_va, w_va, is_cat)
 
-                if is_cat:
-                    spec = _cat_bin_spec(bst, x_tr_enc, x_tr_orig)
-                else:
-                    spec = _num_bin_spec(bst, x_tr_enc)
-
+                spec = _cat_bin_spec(bst, x_tr_enc, x_tr_orig) if is_cat else _num_bin_spec(bst, x_tr_enc)
                 bin_specs[feat] = spec
 
         self.bin_specs_: dict[str, dict[str, Any]] = bin_specs
@@ -300,7 +344,6 @@ class StabilityGrouping(BaseEstimator, TransformerMixin):
     ) -> tuple[int, bool]:
         rsi_values: list[float] = []
         gini_values: list[float] = []
-        unique_months = np.unique(t_va)
 
         for n_leaves in range(2, self.max_bins + 1):
             params = {**_LGBM_PARAMS, "num_leaves": n_leaves, "min_data_in_leaf": min_leaf}
@@ -314,43 +357,8 @@ class StabilityGrouping(BaseEstimator, TransformerMixin):
                     continue
 
             p_va = bst.predict(x_va.reshape(-1, 1), num_iteration=1)
-
-            month_ginis: list[float] = []
-            for m in unique_months:
-                mask = t_va == m
-                if len(np.unique(y_va[mask])) < 2:
-                    continue
-                try:
-                    month_ginis.append(float(roc_auc_score(y_va[mask], p_va[mask], sample_weight=w_va[mask])))
-                except Exception:
-                    pass
-
-            avg_gini = float(np.mean(month_ginis)) if month_ginis else 0.0
-
-            scores_all: list[float] = []
-            rates_all: list[float] = []
-            months_all: list[Any] = []
-
-            for m in unique_months:
-                mask = t_va == m
-                p_m, y_m, w_m = p_va[mask], y_va[mask], w_va[mask]
-                for s in np.unique(p_m):
-                    smask = p_m == s
-                    w_sum = float(w_m[smask].sum())
-                    if w_sum == 0.0:
-                        continue
-                    scores_all.append(float(s))
-                    rates_all.append(float((y_m[smask] * w_m[smask]).sum() / w_sum))
-                    months_all.append(m)
-
-            rsi = _rsi(
-                np.array(scores_all),
-                np.array(rates_all),
-                np.array(months_all),
-                self.stability_threshold,
-            )
-            rsi_values.append(rsi)
-            gini_values.append(avg_gini)
+            rsi_values.append(_bins_rsi(p_va, y_va, w_va, t_va, self.stability_threshold))
+            gini_values.append(_monthly_gini(p_va, y_va, w_va, t_va))
 
         rsi_arr = np.array(rsi_values)
         for i in range(1, len(rsi_arr)):
@@ -366,5 +374,4 @@ class StabilityGrouping(BaseEstimator, TransformerMixin):
         best_gini = float(gini_arr[stable_mask].max())
         best_mask = stable_mask & (gini_arr == best_gini)
         n_bins = int(np.arange(2, 2 + len(rsi_arr))[best_mask].min())
-
         return n_bins, False

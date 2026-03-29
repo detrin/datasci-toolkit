@@ -141,19 +141,15 @@ class AUCStepwiseLogit(BaseEstimator):
                 return False
         return True
 
-    def fit(
+    def _prepare_data(
         self,
         X: pl.DataFrame,
         y: pl.Series,
-        X_val: pl.DataFrame | None = None,
-        y_val: pl.Series | None = None,
-        weights: pl.Series | None = None,
-        weights_val: pl.Series | None = None,
-    ) -> "AUCStepwiseLogit":
-        col_idx = {c: i for i, c in enumerate(X.columns)}
-        initial = list(self.initial_predictors or [])
-        candidates = list(self.all_predictors or X.columns)
-
+        X_val: pl.DataFrame | None,
+        y_val: pl.Series | None,
+        weights: pl.Series | None,
+        weights_val: pl.Series | None,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray | None, np.ndarray, np.ndarray, np.ndarray | None]:
         X_tr = X.to_numpy().astype(float)
         y_tr = y.cast(pl.Float64).to_numpy()
         w_tr = weights.cast(pl.Float64).to_numpy() if weights is not None else None
@@ -162,7 +158,7 @@ class AUCStepwiseLogit(BaseEstimator):
             if X_val is not None and y_val is not None:
                 X_va = np.vstack([X_tr, X_val.to_numpy().astype(float)])
                 y_va = np.concatenate([y_tr, y_val.cast(pl.Float64).to_numpy()])
-                w_va = (
+                w_va: np.ndarray | None = (
                     np.concatenate([w_tr, weights_val.cast(pl.Float64).to_numpy()])
                     if w_tr is not None and weights_val is not None
                     else w_tr
@@ -176,6 +172,101 @@ class AUCStepwiseLogit(BaseEstimator):
         else:
             X_va, y_va, w_va = X_tr, y_tr, w_tr
 
+        return X_tr, y_tr, w_tr, X_va, y_va, w_va
+
+    def _step_forward(
+        self,
+        candidates: list[str],
+        current_preds: list[str],
+        current_auc: float,
+        iteration: int,
+        X_tr: np.ndarray,
+        y_tr: np.ndarray,
+        w_tr: np.ndarray | None,
+        X_va: np.ndarray,
+        y_va: np.ndarray,
+        w_va: np.ndarray | None,
+        col_idx: dict[str, int],
+        cache: dict[frozenset[str], tuple[float, bool]],
+        corr: np.ndarray,
+        min_inc: float,
+        max_dec: float,
+    ) -> tuple[list[str], float, list[dict[str, Any]]]:
+        entries: list[dict[str, Any]] = []
+        if self.max_predictors > 0 and len(current_preds) >= self.max_predictors:
+            return list(current_preds), current_auc, entries
+        for pred in [p for p in candidates if p not in current_preds]:
+            cands = current_preds + [pred]
+            auc, sgn = self._score(cands, X_tr, y_tr, w_tr, X_va, y_va, w_va, col_idx, cache)
+            entries.append({
+                "iteration": iteration, "addrm": 1, "predictors": cands,
+                "n_predictors": len(cands), "auc": auc, "delta": auc - current_auc,
+                "used": False, "same_sign": sgn,
+                "max_corr": _max_abs_corr(corr, [col_idx[p] for p in cands]),
+            })
+        feasible = sorted(
+            [r for r in entries if self._feasible(r, 1, min_inc, max_dec)],
+            key=lambda r: r["delta"],
+            reverse=True,
+        )
+        if feasible:
+            feasible[0]["used"] = True
+            return list(feasible[0]["predictors"]), feasible[0]["auc"], entries
+        return list(current_preds), current_auc, entries
+
+    def _step_backward(
+        self,
+        current_preds: list[str],
+        current_auc: float,
+        iteration: int,
+        X_tr: np.ndarray,
+        y_tr: np.ndarray,
+        w_tr: np.ndarray | None,
+        X_va: np.ndarray,
+        y_va: np.ndarray,
+        w_va: np.ndarray | None,
+        col_idx: dict[str, int],
+        cache: dict[frozenset[str], tuple[float, bool]],
+        corr: np.ndarray,
+        min_inc: float,
+        max_dec: float,
+    ) -> tuple[list[str], float, list[dict[str, Any]]]:
+        entries: list[dict[str, Any]] = []
+        if len(current_preds) <= 1:
+            return list(current_preds), current_auc, entries
+        for pred in current_preds:
+            cands = [p for p in current_preds if p != pred]
+            auc, sgn = self._score(cands, X_tr, y_tr, w_tr, X_va, y_va, w_va, col_idx, cache)
+            entries.append({
+                "iteration": iteration, "addrm": -1, "predictors": cands,
+                "n_predictors": len(cands), "auc": auc, "delta": auc - current_auc,
+                "used": False, "same_sign": sgn,
+                "max_corr": _max_abs_corr(corr, [col_idx[p] for p in cands]),
+            })
+        feasible = sorted(
+            [r for r in entries if self._feasible(r, -1, min_inc, max_dec)],
+            key=lambda r: r["delta"],
+            reverse=True,
+        )
+        if feasible:
+            feasible[0]["used"] = True
+            return list(feasible[0]["predictors"]), feasible[0]["auc"], entries
+        return list(current_preds), current_auc, entries
+
+    def fit(
+        self,
+        X: pl.DataFrame,
+        y: pl.Series,
+        X_val: pl.DataFrame | None = None,
+        y_val: pl.Series | None = None,
+        weights: pl.Series | None = None,
+        weights_val: pl.Series | None = None,
+    ) -> "AUCStepwiseLogit":
+        col_idx = {c: i for i, c in enumerate(X.columns)}
+        initial = list(self.initial_predictors or [])
+        candidates = list(self.all_predictors or X.columns)
+
+        X_tr, y_tr, w_tr, X_va, y_va, w_va = self._prepare_data(X, y, X_val, y_val, weights, weights_val)
         corr = _corr_matrix(X_tr, self.correlation_sample)
         max_dec = max(0.0, self.max_decrease)
         min_inc = max(self.min_increase, max_dec + 1e-9)
@@ -202,45 +293,18 @@ class AUCStepwiseLogit(BaseEstimator):
             original_preds = list(current_preds)
 
             if self.selection_method in ("forward", "stepwise"):
-                if self.max_predictors <= 0 or len(current_preds) < self.max_predictors:
-                    for pred in [p for p in candidates if p not in current_preds]:
-                        cands = current_preds + [pred]
-                        auc, sgn = self._score(cands, X_tr, y_tr, w_tr, X_va, y_va, w_va, col_idx, cache)
-                        records.append({
-                            "iteration": iteration, "addrm": 1, "predictors": cands,
-                            "n_predictors": len(cands), "auc": auc, "delta": auc - current_auc,
-                            "used": False, "same_sign": sgn,
-                            "max_corr": _max_abs_corr(corr, [col_idx[p] for p in cands]),
-                        })
-
-                    feasible = sorted(
-                        [r for r in records if r["iteration"] == iteration and self._feasible(r, 1, min_inc, max_dec)],
-                        key=lambda r: r["delta"], reverse=True,
-                    )
-                    if feasible:
-                        feasible[0]["used"] = True
-                        current_preds = list(feasible[0]["predictors"])
-                        current_auc = feasible[0]["auc"]
-
-            if self.selection_method in ("backward", "stepwise") and len(current_preds) > 1:
-                for pred in current_preds:
-                    cands = [p for p in current_preds if p != pred]
-                    auc, sgn = self._score(cands, X_tr, y_tr, w_tr, X_va, y_va, w_va, col_idx, cache)
-                    records.append({
-                        "iteration": iteration, "addrm": -1, "predictors": cands,
-                        "n_predictors": len(cands), "auc": auc, "delta": auc - current_auc,
-                        "used": False, "same_sign": sgn,
-                        "max_corr": _max_abs_corr(corr, [col_idx[p] for p in cands]),
-                    })
-
-                feasible = sorted(
-                    [r for r in records if r["iteration"] == iteration and self._feasible(r, -1, min_inc, max_dec)],
-                    key=lambda r: r["delta"], reverse=True,
+                current_preds, current_auc, fwd = self._step_forward(
+                    candidates, current_preds, current_auc, iteration,
+                    X_tr, y_tr, w_tr, X_va, y_va, w_va, col_idx, cache, corr, min_inc, max_dec,
                 )
-                if feasible:
-                    feasible[0]["used"] = True
-                    current_preds = list(feasible[0]["predictors"])
-                    current_auc = feasible[0]["auc"]
+                records.extend(fwd)
+
+            if self.selection_method in ("backward", "stepwise"):
+                current_preds, current_auc, bwd = self._step_backward(
+                    current_preds, current_auc, iteration,
+                    X_tr, y_tr, w_tr, X_va, y_va, w_va, col_idx, cache, corr, min_inc, max_dec,
+                )
+                records.extend(bwd)
 
             records.append({
                 "iteration": iteration, "addrm": 0, "predictors": list(current_preds),
@@ -262,6 +326,7 @@ class AUCStepwiseLogit(BaseEstimator):
             self.coef_ = np.array([])
             rate = float(y_tr.mean())
             self.intercept_ = float(np.log(rate / (1.0 - rate))) if 0.0 < rate < 1.0 else 0.0
+
         self.progress_: pl.DataFrame = pl.DataFrame({
             "iteration": [r["iteration"] for r in records],
             "addrm": [r["addrm"] for r in records],

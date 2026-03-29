@@ -153,11 +153,15 @@ class StabilityMonitor(BaseEstimator):
         }
         return self
 
+    def _score_month(self, df: pl.DataFrame, feat: str, est: PSI, m: object, col_month: str) -> dict:
+        subset = df.filter(pl.col(col_month) == m)
+        return {"feature": feat, "month": m, "psi": est.score(subset[feat], self._w(subset))}
+
     def score(self, df: pl.DataFrame, col_month: str) -> pl.DataFrame:
         check_is_fitted(self)
         months = sorted(df[col_month].unique().to_list())
         return pl.DataFrame([
-            {"feature": feat, "month": m, "psi": est.score(df.filter(pl.col(col_month) == m)[feat], self._w(df.filter(pl.col(col_month) == m)))}
+            self._score_month(df, feat, est, m, col_month)
             for feat, est in self.estimators_.items()
             for m in months
         ])

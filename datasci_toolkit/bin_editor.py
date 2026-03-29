@@ -249,55 +249,60 @@ class BinEditor:
     def history(self, feat: str) -> list[dict[str, Any]]:
         return [{"type": k, "value": v} for k, v in self._history[feat]]
 
+    def _suggest_num(self, feat: str, n: int) -> list[float]:
+        x = self._x[feat]
+        x_valid = x[~np.isnan(x)]
+        if len(x_valid) == 0:
+            return []
+        current = self._splits[feat]
+        span = float(x_valid.max() - x_valid.min())
+        min_gap = span * 0.01
+        candidates = [
+            float(c) for c in np.unique(np.percentile(x_valid, np.linspace(5, 95, 40)))
+            if all(abs(c - s) > min_gap for s in current)
+        ]
+        base_iv = self._base_state(feat)["iv"]
+        pairs: list[tuple[float, float]] = sorted(
+            [
+                (
+                    _bin_stats(self._y, self._w, _num_assign(x, sorted(current + [c])), len(current) + 2)["iv"] - base_iv,
+                    float(c),
+                )
+                for c in candidates
+            ],
+            reverse=True,
+        )
+        return [v for _, v in pairs[:n]]
+
+    def _suggest_cat(self, feat: str, n: int) -> list[tuple[int, int]]:
+        cat_bins = self._cat_bins[feat]
+        n_groups = max(cat_bins.values()) + 1 if cat_bins else 0
+        if n_groups <= 1:
+            return []
+        x = self._x[feat]
+        base_iv = self._base_state(feat)["iv"]
+        pairs: list[tuple[float, tuple[int, int]]] = sorted(
+            [
+                (
+                    base_iv - _bin_stats(
+                        self._y, self._w,
+                        _cat_assign(x, {
+                            cat: (bin_idx if grp == bin_idx + 1 else (grp - 1 if grp > bin_idx + 1 else grp))
+                            for cat, grp in cat_bins.items()
+                        }),
+                        n_groups - 1,
+                    )["iv"],
+                    (bin_idx, bin_idx + 1),
+                )
+                for bin_idx in range(n_groups - 1)
+            ]
+        )
+        return [pair for _, pair in pairs[:n]]
+
     def suggest_splits(self, feat: str, n: int = 5) -> list:  # type: ignore[type-arg]
         if feat in self._splits:
-            x = self._x[feat]
-            x_valid = x[~np.isnan(x)]
-            if len(x_valid) == 0:
-                return []
-            current = self._splits[feat]
-            span = float(x_valid.max() - x_valid.min())
-            min_gap = span * 0.01
-            candidates = [
-                float(c) for c in np.unique(np.percentile(x_valid, np.linspace(5, 95, 40)))
-                if all(abs(c - s) > min_gap for s in current)
-            ]
-            base_iv = self._base_state(feat)["iv"]
-            pairs_num: list[tuple[float, float]] = sorted(
-                [
-                    (
-                        _bin_stats(self._y, self._w, _num_assign(x, sorted(current + [c])), len(current) + 2)["iv"] - base_iv,
-                        float(c),
-                    )
-                    for c in candidates
-                ],
-                reverse=True,
-            )
-            return [v for _, v in pairs_num[:n]]
-        else:
-            cat_bins = self._cat_bins[feat]
-            n_groups = max(cat_bins.values()) + 1 if cat_bins else 0
-            if n_groups <= 1:
-                return []
-            x = self._x[feat]
-            base_iv = self._base_state(feat)["iv"]
-            pairs_cat: list[tuple[float, tuple[int, int]]] = sorted(
-                [
-                    (
-                        base_iv - _bin_stats(
-                            self._y, self._w,
-                            _cat_assign(x, {
-                                cat: (bin_idx if grp == bin_idx + 1 else (grp - 1 if grp > bin_idx + 1 else grp))
-                                for cat, grp in cat_bins.items()
-                            }),
-                            n_groups - 1,
-                        )["iv"],
-                        (bin_idx, bin_idx + 1),
-                    )
-                    for bin_idx in range(n_groups - 1)
-                ]
-            )
-            return [pair for _, pair in pairs_cat[:n]]
+            return self._suggest_num(feat, n)
+        return self._suggest_cat(feat, n)
 
     def accept(self) -> dict[str, dict[str, Any]]:
         return {feat: self.accept_feature(feat) for feat in self.features()}
