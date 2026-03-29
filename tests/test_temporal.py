@@ -118,3 +118,214 @@ def test_join_tables_multi_null_for_missing_entity():
     fe.primary_ = "transactions"
     result = fe._join_tables(TABLES_MULTI)
     assert 3 not in result["user_id"].to_list()
+
+# ── aggregation ──────────────────────────────────────────────────────────────
+def test_agg_sum_30d():
+    fe = (
+        TemporalFeatureEngineer()
+        .add_aggregation("amount", ["sum"], ["30d"], "transactions")
+    )
+    result = fe.fit_transform(
+        TABLES_SINGLE, entity_col="user_id", time_col="date",
+        reference_date=REFERENCE_DATE, primary="transactions",
+    )
+    row1 = result.filter(pl.col("user_id") == 1)["SUM_AMOUNT_30d"][0]
+    row2 = result.filter(pl.col("user_id") == 2)["SUM_AMOUNT_30d"][0]
+    # user 1: 10d + 20d events → 100 + 200 = 300
+    assert row1 == pytest.approx(300.0)
+    # user 2: 5d event only → 150
+    assert row2 == pytest.approx(150.0)
+
+def test_agg_sum_inf():
+    fe = (
+        TemporalFeatureEngineer()
+        .add_aggregation("amount", ["sum"], ["inf"], "transactions")
+    )
+    result = fe.fit_transform(
+        TABLES_SINGLE, entity_col="user_id", time_col="date",
+        reference_date=REFERENCE_DATE, primary="transactions",
+    )
+    row1 = result.filter(pl.col("user_id") == 1)["SUM_AMOUNT_inf"][0]
+    row2 = result.filter(pl.col("user_id") == 2)["SUM_AMOUNT_inf"][0]
+    assert row1 == pytest.approx(600.0)
+    assert row2 == pytest.approx(400.0)
+
+def test_agg_mean():
+    fe = (
+        TemporalFeatureEngineer()
+        .add_aggregation("amount", ["mean"], ["inf"], "transactions")
+    )
+    result = fe.fit_transform(
+        TABLES_SINGLE, entity_col="user_id", time_col="date",
+        reference_date=REFERENCE_DATE, primary="transactions",
+    )
+    row1 = result.filter(pl.col("user_id") == 1)["MEAN_AMOUNT_inf"][0]
+    assert row1 == pytest.approx(200.0)  # (100+200+300)/3
+
+def test_agg_count():
+    fe = (
+        TemporalFeatureEngineer()
+        .add_aggregation("amount", ["count"], ["inf"], "transactions")
+    )
+    result = fe.fit_transform(
+        TABLES_SINGLE, entity_col="user_id", time_col="date",
+        reference_date=REFERENCE_DATE, primary="transactions",
+    )
+    assert result.filter(pl.col("user_id") == 1)["COUNT_AMOUNT_inf"][0] == 3
+    assert result.filter(pl.col("user_id") == 2)["COUNT_AMOUNT_inf"][0] == 2
+
+def test_agg_multiple_functions_and_windows():
+    fe = (
+        TemporalFeatureEngineer()
+        .add_aggregation("amount", ["sum", "mean"], ["30d", "inf"], "transactions")
+    )
+    result = fe.fit_transform(
+        TABLES_SINGLE, entity_col="user_id", time_col="date",
+        reference_date=REFERENCE_DATE, primary="transactions",
+    )
+    expected_cols = {"SUM_AMOUNT_30d", "MEAN_AMOUNT_30d", "SUM_AMOUNT_inf", "MEAN_AMOUNT_inf"}
+    assert expected_cols.issubset(set(result.columns))
+
+def test_agg_with_query():
+    fe = (
+        TemporalFeatureEngineer()
+        .add_aggregation("amount", ["sum"], ["inf"], "transactions", query="status = 'paid'")
+    )
+    result = fe.fit_transform(
+        TABLES_SINGLE, entity_col="user_id", time_col="date",
+        reference_date=REFERENCE_DATE, primary="transactions",
+    )
+    col = "SUM_AMOUNT_inf__status__paid"
+    assert col in result.columns
+    # user 1: paid rows are 100, 200 → sum=300
+    assert result.filter(pl.col("user_id") == 1)[col][0] == pytest.approx(300.0)
+
+def test_agg_missing_entity_is_null():
+    fe = (
+        TemporalFeatureEngineer()
+        .add_aggregation("amount", ["sum"], ["30d"], "transactions")
+    )
+    fe.fit(
+        TABLES_SINGLE, entity_col="user_id", time_col="date",
+        reference_date=REFERENCE_DATE, primary="transactions",
+    )
+    fe.entities_ = pl.Series([1, 2, 3])
+    result = fe.transform(TABLES_SINGLE)
+    row3 = result.filter(pl.col("user_id") == 3)["SUM_AMOUNT_30d"][0]
+    assert row3 is None
+
+def test_agg_output_one_row_per_entity():
+    fe = (
+        TemporalFeatureEngineer()
+        .add_aggregation("amount", ["sum"], ["30d", "inf"], "transactions")
+    )
+    result = fe.fit_transform(
+        TABLES_SINGLE, entity_col="user_id", time_col="date",
+        reference_date=REFERENCE_DATE, primary="transactions",
+    )
+    assert result["user_id"].n_unique() == result.shape[0]
+
+# ── time-since ───────────────────────────────────────────────────────────────
+def test_time_since_last_days():
+    fe = (
+        TemporalFeatureEngineer()
+        .add_time_since("date", from_="last", unit="days", table="transactions")
+    )
+    result = fe.fit_transform(
+        TABLES_SINGLE, entity_col="user_id", time_col="date",
+        reference_date=REFERENCE_DATE, primary="transactions",
+    )
+    col = "TIME_SINCE_LAST_DATE_days"
+    assert col in result.columns
+    # user 1: most recent event is 10d before ref
+    assert result.filter(pl.col("user_id") == 1)[col][0] == pytest.approx(10.0)
+    # user 2: most recent event is 5d before ref
+    assert result.filter(pl.col("user_id") == 2)[col][0] == pytest.approx(5.0)
+
+def test_time_since_first_days():
+    fe = (
+        TemporalFeatureEngineer()
+        .add_time_since("date", from_="first", unit="days", table="transactions")
+    )
+    result = fe.fit_transform(
+        TABLES_SINGLE, entity_col="user_id", time_col="date",
+        reference_date=REFERENCE_DATE, primary="transactions",
+    )
+    col = "TIME_SINCE_FIRST_DATE_days"
+    # user 1: oldest event is 45d before ref
+    assert result.filter(pl.col("user_id") == 1)[col][0] == pytest.approx(45.0)
+    # user 2: oldest event is 60d before ref
+    assert result.filter(pl.col("user_id") == 2)[col][0] == pytest.approx(60.0)
+
+def test_time_since_months():
+    fe = (
+        TemporalFeatureEngineer()
+        .add_time_since("date", from_="last", unit="months", table="transactions")
+    )
+    result = fe.fit_transform(
+        TABLES_SINGLE, entity_col="user_id", time_col="date",
+        reference_date=REFERENCE_DATE, primary="transactions",
+    )
+    col = "TIME_SINCE_LAST_DATE_months"
+    # user 1: 10 days / 30.4375 ≈ 0.328 months
+    val = result.filter(pl.col("user_id") == 1)[col][0]
+    assert abs(val - 10 / 30.4375) < 0.01
+
+def test_time_since_with_query():
+    fe = (
+        TemporalFeatureEngineer()
+        .add_time_since("date", from_="last", unit="days", table="transactions",
+                        query="status = 'paid'")
+    )
+    result = fe.fit_transform(
+        TABLES_SINGLE, entity_col="user_id", time_col="date",
+        reference_date=REFERENCE_DATE, primary="transactions",
+    )
+    col = "TIME_SINCE_LAST_DATE_days"
+    # user 1: paid events at 10d and 20d → last paid = 10d
+    assert result.filter(pl.col("user_id") == 1)[col][0] == pytest.approx(10.0)
+
+# ── ratio ────────────────────────────────────────────────────────────────────
+def test_ratio_normal():
+    fe = (
+        TemporalFeatureEngineer()
+        .add_aggregation("amount", ["sum"], ["30d", "inf"], "transactions")
+        .add_ratio("SUM_AMOUNT_30d", "SUM_AMOUNT_inf")
+    )
+    result = fe.fit_transform(
+        TABLES_SINGLE, entity_col="user_id", time_col="date",
+        reference_date=REFERENCE_DATE, primary="transactions",
+    )
+    col = "RATIO_SUM_AMOUNT_30d__SUM_AMOUNT_inf"
+    assert col in result.columns
+    # user 1: 300 / 600 = 0.5
+    assert result.filter(pl.col("user_id") == 1)[col][0] == pytest.approx(0.5)
+    # user 2: 150 / 400 = 0.375
+    assert result.filter(pl.col("user_id") == 2)[col][0] == pytest.approx(0.375)
+
+def test_ratio_zero_denominator_is_null():
+    fe = (
+        TemporalFeatureEngineer()
+        .add_aggregation("amount", ["sum"], ["3d", "inf"], "transactions")
+        .add_ratio("SUM_AMOUNT_3d", "SUM_AMOUNT_inf")
+    )
+    result = fe.fit_transform(
+        TABLES_SINGLE, entity_col="user_id", time_col="date",
+        reference_date=REFERENCE_DATE, primary="transactions",
+    )
+    col = "RATIO_SUM_AMOUNT_3d__SUM_AMOUNT_inf"
+    # Both users have null for 3d window → null ratio
+    val1 = result.filter(pl.col("user_id") == 1)[col][0]
+    assert val1 is None
+
+def test_ratio_column_present():
+    fe = (
+        TemporalFeatureEngineer()
+        .add_aggregation("amount", ["sum"], ["30d", "inf"], "transactions")
+        .add_ratio("SUM_AMOUNT_30d", "SUM_AMOUNT_inf")
+    )
+    result = fe.fit_transform(
+        TABLES_SINGLE, entity_col="user_id", time_col="date",
+        reference_date=REFERENCE_DATE, primary="transactions",
+    )
+    assert "RATIO_SUM_AMOUNT_30d__SUM_AMOUNT_inf" in result.columns
