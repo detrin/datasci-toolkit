@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 from sklearn.base import BaseEstimator
@@ -92,6 +93,87 @@ class BootstrapGini(BaseEstimator):
         )
         self.scores_: np.ndarray = np.array(scores)
         return self
+
+
+def gini_by_period(
+    y: pl.Series,
+    y_pred: pl.Series,
+    periods: pl.Series,
+    *,
+    mask: pl.Series | None = None,
+    sample_weight: pl.Series | None = None,
+) -> pl.DataFrame:
+    yt = y.cast(pl.Float64).to_numpy()
+    yp = y_pred.cast(pl.Float64).to_numpy()
+    t = periods.to_numpy()
+    m = mask.to_numpy().astype(bool) if mask is not None else np.ones(len(yt), dtype=bool)
+    sw = sample_weight.cast(pl.Float64).to_numpy() if sample_weight is not None else None
+    rows = []
+    for period in np.sort(np.unique(t)):
+        idx = m & (t == period)
+        if idx.sum() < 2 or len(np.unique(yt[idx])) < 2:
+            continue
+        g = gini(yt[idx], yp[idx], sample_weight=sw[idx] if sw is not None else None)
+        rows.append({"period": period, "gini": g, "count": int(idx.sum())})
+    return pl.DataFrame(rows)
+
+
+def lift_by_period(
+    y: pl.Series,
+    y_pred: pl.Series,
+    periods: pl.Series,
+    *,
+    perc: float = 10.0,
+    mask: pl.Series | None = None,
+) -> pl.DataFrame:
+    yt = y.cast(pl.Float64).to_numpy()
+    yp = y_pred.cast(pl.Float64).to_numpy()
+    t = periods.to_numpy()
+    m = mask.to_numpy().astype(bool) if mask is not None else np.ones(len(yt), dtype=bool)
+    rows = []
+    for period in np.sort(np.unique(t)):
+        idx = m & (t == period)
+        if idx.sum() < 2 or float(yt[idx].mean()) == 0.0:
+            continue
+        rows.append({"period": period, "lift": lift(yt[idx], yp[idx], perc), "count": int(idx.sum())})
+    return pl.DataFrame(rows)
+
+
+def plot_metric_by_period(
+    periods: list,
+    metric_arrays: list[list[float]],
+    counts: list[float],
+    labels: list[str],
+    *,
+    title: str = "",
+    ylabel: str = "Metric",
+    y_lim: tuple[float, float] | None = None,
+    size: tuple[int, int] = (10, 5),
+    output_file: str | None = None,
+    show: bool = True,
+) -> None:
+    fig, ax1 = plt.subplots(figsize=size)
+    x = np.arange(len(periods))
+    ax1.bar(x, counts, color="lightgray", zorder=2)
+    ax1.set_ylabel("Count", fontsize=11)
+    ax1.set_xticks(x)
+    ax1.set_xticklabels(periods, rotation=45, ha="right")
+    ax1.grid(zorder=1)
+    ax2 = ax1.twinx()
+    for arr, label in zip(metric_arrays, labels):
+        ax2.plot(x, arr, linewidth=2.5, marker="o", markersize=4, label=label, zorder=5)
+    ax2.set_ylabel(ylabel, fontsize=11)
+    if y_lim is not None:
+        ax2.set_ylim(*y_lim)
+    ax2.legend(loc="best")
+    if title:
+        fig.suptitle(title, fontsize=14)
+    fig.tight_layout()
+    if output_file:
+        fig.savefig(output_file, bbox_inches="tight", dpi=150)
+    if show:
+        plt.show()
+    plt.close(fig)
 
 
 def feature_power(

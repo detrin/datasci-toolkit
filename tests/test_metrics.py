@@ -2,7 +2,10 @@ import numpy as np
 import polars as pl
 import pytest
 
-from datasci_toolkit.metrics import gini, ks, lift, iv, BootstrapGini, feature_power
+from datasci_toolkit.metrics import (
+    gini, ks, lift, iv, BootstrapGini, feature_power,
+    gini_by_period, lift_by_period, plot_metric_by_period,
+)
 
 RNG = np.random.default_rng(42)
 
@@ -183,3 +186,129 @@ def test_feature_power_weighted() -> None:
     w = pl.Series(_W.tolist())
     result = feature_power(X, y, sample_weight=w)
     assert len(result) == 1
+
+
+# --- shared fixtures for period-metric tests ---
+
+_N_PERIODS = 4
+_PERIODS = pl.Series(np.repeat(np.arange(_N_PERIODS), N // _N_PERIODS).tolist())
+_Y_S = pl.Series(_Y.tolist())
+_SCORE_S = pl.Series(_SCORE.tolist())
+
+
+# --- gini_by_period ---
+
+def test_gini_by_period_returns_all_periods() -> None:
+    df = gini_by_period(_Y_S, _SCORE_S, _PERIODS)
+    assert len(df) == _N_PERIODS
+
+
+def test_gini_by_period_output_columns() -> None:
+    df = gini_by_period(_Y_S, _SCORE_S, _PERIODS)
+    assert set(df.columns) == {"period", "gini", "count"}
+
+
+def test_gini_by_period_values_in_range() -> None:
+    df = gini_by_period(_Y_S, _SCORE_S, _PERIODS)
+    assert df["gini"].is_between(-1.0, 1.0).all()
+
+
+def test_gini_by_period_counts_positive() -> None:
+    df = gini_by_period(_Y_S, _SCORE_S, _PERIODS)
+    assert (df["count"] > 0).all()
+
+
+def test_gini_by_period_counts_sum_to_n() -> None:
+    df = gini_by_period(_Y_S, _SCORE_S, _PERIODS)
+    assert df["count"].sum() == len(_PERIODS)
+
+
+def test_gini_by_period_mask_reduces_count() -> None:
+    mask = pl.Series((_PERIODS.to_numpy() < 2).tolist())
+    df_full = gini_by_period(_Y_S, _SCORE_S, _PERIODS)
+    df_masked = gini_by_period(_Y_S, _SCORE_S, _PERIODS, mask=mask)
+    assert df_masked["count"].sum() < df_full["count"].sum()
+
+
+def test_gini_by_period_skips_single_class_period() -> None:
+    periods = pl.Series([0, 0, 1, 1])
+    y_bad = pl.Series([0.0, 0.0, 0.0, 0.0])
+    y_pred = pl.Series([0.1, 0.2, 0.3, 0.4])
+    df = gini_by_period(y_bad, y_pred, periods)
+    assert len(df) == 0
+
+
+def test_gini_by_period_good_predictor_positive_gini() -> None:
+    df = gini_by_period(_Y_S, _SCORE_S, _PERIODS)
+    assert (df["gini"] > 0).all()
+
+
+def test_gini_by_period_with_sample_weight() -> None:
+    w = pl.Series(_W.tolist())
+    df = gini_by_period(_Y_S, _SCORE_S, _PERIODS, sample_weight=w)
+    assert len(df) == _N_PERIODS
+
+
+# --- lift_by_period ---
+
+def test_lift_by_period_returns_all_periods() -> None:
+    df = lift_by_period(_Y_S, -_SCORE_S, _PERIODS)
+    assert len(df) == _N_PERIODS
+
+
+def test_lift_by_period_output_columns() -> None:
+    df = lift_by_period(_Y_S, -_SCORE_S, _PERIODS)
+    assert set(df.columns) == {"period", "lift", "count"}
+
+
+def test_lift_by_period_values_positive() -> None:
+    df = lift_by_period(_Y_S, -_SCORE_S, _PERIODS)
+    assert (df["lift"] > 0).all()
+
+
+def test_lift_by_period_good_predictor_above_one() -> None:
+    df = lift_by_period(_Y_S, -_SCORE_S, _PERIODS, perc=10.0)
+    assert (df["lift"] > 1.0).all()
+
+
+def test_lift_by_period_mask_filters() -> None:
+    mask = pl.Series((_PERIODS.to_numpy() < 2).tolist())
+    df = lift_by_period(_Y_S, -_SCORE_S, _PERIODS, mask=mask)
+    assert len(df) == 2
+
+
+def test_lift_by_period_skips_zero_event_rate() -> None:
+    periods = pl.Series([0, 0, 1, 1])
+    y_no_events = pl.Series([0.0, 0.0, 0.0, 0.0])
+    y_pred = pl.Series([0.1, 0.2, 0.3, 0.4])
+    df = lift_by_period(y_no_events, y_pred, periods)
+    assert len(df) == 0
+
+
+# --- plot_metric_by_period (smoke test) ---
+
+def test_plot_metric_by_period_runs() -> None:
+    df = gini_by_period(_Y_S, _SCORE_S, _PERIODS)
+    periods = df["period"].to_list()
+    ginis = df["gini"].to_list()
+    counts = df["count"].to_list()
+    plot_metric_by_period(periods, [ginis], counts, ["model"], ylabel="Gini", show=False)
+
+
+def test_plot_metric_by_period_multi_series() -> None:
+    df = gini_by_period(_Y_S, _SCORE_S, _PERIODS)
+    periods = df["period"].to_list()
+    ginis = df["gini"].to_list()
+    counts = df["count"].to_list()
+    plot_metric_by_period(periods, [ginis, ginis], counts, ["m1", "m2"], show=False)
+
+
+def test_plot_metric_by_period_saves_file(tmp_path) -> None:
+    df = gini_by_period(_Y_S, _SCORE_S, _PERIODS)
+    periods = df["period"].to_list()
+    ginis = df["gini"].to_list()
+    counts = df["count"].to_list()
+    out = str(tmp_path / "metric.png")
+    plot_metric_by_period(periods, [ginis], counts, ["model"], show=False, output_file=out)
+    import os
+    assert os.path.exists(out)
