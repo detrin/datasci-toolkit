@@ -231,7 +231,7 @@ def test_merge_labels_float_are_split_values() -> None:
     w = BinEditorWidget(_make_editor())
     _send(w, {"action": "set_feature", "feature": "num"})
     ed_state = _make_editor().state("num")
-    assert len(w.merge_labels) == len(ed_state["splits"])
+    assert len(w.merge_labels) == len(ed_state.splits)
 
 
 def test_merge_labels_cat_contain_category_names() -> None:

@@ -2,7 +2,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from datasci_toolkit.bin_editor import BinEditor, _bin_stats, _num_assign, _cat_assign
+from datasci_toolkit.bin_editor import BinEditor, FeatureDtype, FeatureState, TemporalStats, _bin_stats, _num_assign, _cat_assign
 
 RNG = np.random.default_rng(0)
 
@@ -119,99 +119,102 @@ def test_editor_features(editor: BinEditor) -> None:
 
 def test_editor_state_num_keys(editor: BinEditor) -> None:
     s = editor.state("num")
-    assert {"feature", "dtype", "splits", "bins", "counts", "event_rates", "woe", "iv", "n_bins"} <= s.keys()
+    for attr in ("feature", "dtype", "splits", "bins", "counts", "event_rates", "woe", "iv", "n_bins"):
+        assert hasattr(s, attr)
 
 
 def test_editor_state_cat_keys(editor: BinEditor) -> None:
     s = editor.state("cat")
-    assert {"feature", "dtype", "groups", "bins", "counts", "event_rates", "woe", "iv", "n_bins"} <= s.keys()
+    for attr in ("feature", "dtype", "groups", "bins", "counts", "event_rates", "woe", "iv", "n_bins"):
+        assert hasattr(s, attr)
 
 
 def test_editor_state_num_dtype(editor: BinEditor) -> None:
-    assert editor.state("num")["dtype"] == "float"
+    assert editor.state("num").dtype == FeatureDtype.NUMERIC
 
 
 def test_editor_state_cat_dtype(editor: BinEditor) -> None:
-    assert editor.state("cat")["dtype"] == "category"
+    assert editor.state("cat").dtype == FeatureDtype.CATEGORICAL
 
 
 def test_editor_state_counts_sum(editor: BinEditor) -> None:
     s = editor.state("num")
-    data_counts = sum(s["counts"][:-1])
+    data_counts = sum(s.counts[:-1])
     assert data_counts == pytest.approx(N, abs=1)
 
 
 def test_editor_state_event_rates_range(editor: BinEditor) -> None:
     s = editor.state("num")
-    for er in s["event_rates"][:-1]:
+    for er in s.event_rates[:-1]:
         if er is not None:
             assert 0.0 <= er <= 1.0
 
 
 def test_editor_state_iv_nonneg(editor: BinEditor) -> None:
-    assert editor.state("num")["iv"] >= 0.0
+    assert editor.state("num").iv >= 0.0
 
 
 # --- split ---
 
 def test_split_increases_n_bins(editor: BinEditor) -> None:
-    before = editor.state("num")["n_bins"]
+    before = editor.state("num").n_bins
     editor.split("num", 0.0)
-    after = editor.state("num")["n_bins"]
+    after = editor.state("num").n_bins
     assert after == before + 1
 
 
 def test_split_sorted(editor: BinEditor) -> None:
     editor.split("num", 1.0)
     editor.split("num", -1.0)
-    splits = editor.state("num")["splits"]
+    splits = editor.state("num").splits
     assert splits == sorted(splits)
 
 
 def test_split_idempotent(editor: BinEditor) -> None:
     editor.split("num", 0.5)
-    n1 = editor.state("num")["n_bins"]
+    n1 = editor.state("num").n_bins
     editor.split("num", 0.5)
-    n2 = editor.state("num")["n_bins"]
+    n2 = editor.state("num").n_bins
     assert n1 == n2
 
 
 def test_split_returns_state(editor: BinEditor) -> None:
     s = editor.split("num", 0.1)
-    assert s["dtype"] == "float"
+    assert isinstance(s, FeatureState)
+    assert s.dtype == FeatureDtype.NUMERIC
 
 
 # --- merge ---
 
 def test_merge_num_decreases_n_bins(editor: BinEditor) -> None:
-    before = editor.state("num")["n_bins"]
+    before = editor.state("num").n_bins
     editor.merge("num", 0)
-    after = editor.state("num")["n_bins"]
+    after = editor.state("num").n_bins
     assert after == before - 1
 
 
 def test_merge_cat_decreases_n_bins(editor: BinEditor) -> None:
-    before = editor.state("cat")["n_bins"]
+    before = editor.state("cat").n_bins
     editor.merge("cat", 0)
-    after = editor.state("cat")["n_bins"]
+    after = editor.state("cat").n_bins
     assert after == before - 1
 
 
 def test_merge_out_of_range_noop(editor: BinEditor) -> None:
-    n_before = editor.state("num")["n_bins"]
+    n_before = editor.state("num").n_bins
     editor.merge("num", 999)
-    assert editor.state("num")["n_bins"] == n_before
+    assert editor.state("num").n_bins == n_before
 
 
 def test_merge_cat_out_of_range_noop(editor: BinEditor) -> None:
-    n_before = editor.state("cat")["n_bins"]
+    n_before = editor.state("cat").n_bins
     editor.merge("cat", 999)
-    assert editor.state("cat")["n_bins"] == n_before
+    assert editor.state("cat").n_bins == n_before
 
 
 def test_merge_cat_groups_renumbered(editor: BinEditor) -> None:
     editor.merge("cat", 0)
-    groups = editor.state("cat")["groups"]
+    groups = editor.state("cat").groups
     assert set(groups.keys()) == {0, 1}
 
 
@@ -219,36 +222,36 @@ def test_merge_cat_groups_renumbered(editor: BinEditor) -> None:
 
 def test_move_boundary_changes_split(editor: BinEditor) -> None:
     editor.move_boundary("num", 0, -0.3)
-    splits = editor.state("num")["splits"]
+    splits = editor.state("num").splits
     assert -0.3 in splits
 
 
 def test_move_boundary_out_of_range_noop(editor: BinEditor) -> None:
-    splits_before = editor.state("num")["splits"]
+    splits_before = editor.state("num").splits
     editor.move_boundary("num", 999, 1.0)
-    assert editor.state("num")["splits"] == splits_before
+    assert editor.state("num").splits == splits_before
 
 
 # --- undo ---
 
 def test_undo_reverts_split(editor: BinEditor) -> None:
-    splits_before = editor.state("num")["splits"]
+    splits_before = editor.state("num").splits
     editor.split("num", 0.0)
     editor.undo("num")
-    assert editor.state("num")["splits"] == splits_before
+    assert editor.state("num").splits == splits_before
 
 
 def test_undo_empty_noop(editor: BinEditor) -> None:
     s_before = editor.state("num")
     editor.undo("num")
-    assert editor.state("num")["splits"] == s_before["splits"]
+    assert editor.state("num").splits == s_before.splits
 
 
 def test_undo_reverts_cat_merge(editor: BinEditor) -> None:
-    n_before = editor.state("cat")["n_bins"]
+    n_before = editor.state("cat").n_bins
     editor.merge("cat", 0)
     editor.undo("cat")
-    assert editor.state("cat")["n_bins"] == n_before
+    assert editor.state("cat").n_bins == n_before
 
 
 # --- history ---
@@ -276,18 +279,18 @@ def test_history_cleared_on_reset(editor: BinEditor) -> None:
 # --- reset ---
 
 def test_reset_restores_original_splits(editor: BinEditor) -> None:
-    original_splits = editor.state("num")["splits"]
+    original_splits = editor.state("num").splits
     editor.split("num", 0.0)
     editor.merge("num", 0)
     editor.reset("num")
-    assert editor.state("num")["splits"] == original_splits
+    assert editor.state("num").splits == original_splits
 
 
 def test_reset_cat_restores_original(editor: BinEditor) -> None:
-    original_bins = editor.state("cat")["n_bins"]
+    original_bins = editor.state("cat").n_bins
     editor.merge("cat", 0)
     editor.reset("cat")
-    assert editor.state("cat")["n_bins"] == original_bins
+    assert editor.state("cat").n_bins == original_bins
 
 
 # --- suggest_splits ---
@@ -309,10 +312,10 @@ def test_suggest_splits_num_positive_iv_gain(editor: BinEditor) -> None:
         pl.DataFrame({"num": _X_NP.tolist()}),
         pl.Series(_Y_NP.tolist()),
     )
-    base_iv = editor_no_splits.state("num")["iv"]
+    base_iv = editor_no_splits.state("num").iv
     suggestions = editor_no_splits.suggest_splits("num", n=1)
     if suggestions:
-        after_iv = editor_no_splits.split("num", suggestions[0])["iv"]
+        after_iv = editor_no_splits.split("num", suggestions[0]).iv
         assert after_iv >= base_iv
 
 
@@ -375,63 +378,63 @@ def test_accept_compatible_with_woe_transformer(editor: BinEditor) -> None:
 
 def test_temporal_state_has_temporal_key(editor_temporal: BinEditor) -> None:
     s = editor_temporal.state("num")
-    assert "temporal" in s
+    assert s.temporal is not None
 
 
 def test_no_temporal_key_without_t(editor: BinEditor) -> None:
     s = editor.state("num")
-    assert "temporal" not in s
+    assert s.temporal is None
 
 
 def test_temporal_months_length(editor_temporal: BinEditor) -> None:
     s = editor_temporal.state("num")
-    assert len(s["temporal"]["months"]) == _N_MONTHS
+    assert len(s.temporal.months) == _N_MONTHS
 
 
 def test_temporal_event_rates_structure(editor_temporal: BinEditor) -> None:
     s = editor_temporal.state("num")
-    n = s["n_bins"]
-    er = s["temporal"]["event_rates"]
+    n = s.n_bins
+    er = s.temporal.event_rates
     assert len(er) == n
     assert all(len(row) == _N_MONTHS for row in er)
 
 
 def test_temporal_pop_shares_structure(editor_temporal: BinEditor) -> None:
     s = editor_temporal.state("num")
-    n = s["n_bins"]
-    ps = s["temporal"]["pop_shares"]
+    n = s.n_bins
+    ps = s.temporal.pop_shares
     assert len(ps) == n
     assert all(len(row) == _N_MONTHS for row in ps)
 
 
 def test_temporal_pop_shares_sum_to_one(editor_temporal: BinEditor) -> None:
     s = editor_temporal.state("num")
-    ps = s["temporal"]["pop_shares"]
+    ps = s.temporal.pop_shares
     n_months = _N_MONTHS
     for m_idx in range(n_months):
-        total = sum(ps[b][m_idx] for b in range(s["n_bins"]))
+        total = sum(ps[b][m_idx] for b in range(s.n_bins))
         assert total == pytest.approx(1.0, abs=1e-4)
 
 
 def test_temporal_rsi_in_range(editor_temporal: BinEditor) -> None:
     s = editor_temporal.state("num")
-    rsi = s["temporal"]["rsi"]
+    rsi = s.temporal.rsi
     assert 0.0 <= rsi <= 1.0
 
 
 def test_temporal_rsi_float(editor_temporal: BinEditor) -> None:
     s = editor_temporal.state("num")
-    assert isinstance(s["temporal"]["rsi"], float)
+    assert isinstance(s.temporal.rsi, float)
 
 
 def test_temporal_cat_feature(editor_temporal: BinEditor) -> None:
     s = editor_temporal.state("cat")
-    assert "temporal" in s
-    assert len(s["temporal"]["event_rates"]) == s["n_bins"]
+    assert s.temporal is not None
+    assert len(s.temporal.event_rates) == s.n_bins
 
 
 def test_temporal_persists_after_split(editor_temporal: BinEditor) -> None:
     editor_temporal.split("num", 0.0)
     s = editor_temporal.state("num")
-    assert "temporal" in s
-    assert s["n_bins"] > 0
+    assert s.temporal is not None
+    assert s.n_bins > 0

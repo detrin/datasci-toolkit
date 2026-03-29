@@ -15,7 +15,7 @@ try:
 except ImportError:
     _AVAILABLE = False
 
-from datasci_toolkit.bin_editor import BinEditor
+from datasci_toolkit.bin_editor import BinEditor, FeatureDtype, FeatureState
 
 _PALETTE = ["#4C72B0", "#DD8452", "#55A868", "#C44E52", "#8172B2", "#937860", "#DA8BC3", "#8C8C8C", "#CCB974", "#64B5CD"]
 
@@ -199,7 +199,7 @@ if _AVAILABLE:
             elif action == "suggest":
                 raw = self._ed.suggest_splits(feat, n=5)
                 state = self._ed.state(feat)
-                if state["dtype"] == "float":
+                if state.dtype == FeatureDtype.NUMERIC:
                     self.suggestions = [float(v) for v in raw]
                 else:
                     self.suggestions = [[int(a), int(b)] for a, b in raw]
@@ -209,44 +209,45 @@ if _AVAILABLE:
 
         def _sync(self) -> None:
             state = self._ed.state(self.current_feat)
-            self.feat_dtype    = state["dtype"]
+            self.feat_dtype    = state.dtype.value
             self.chart_png     = self._chart(state)
             self.stability_png = self._stability(state)
             self.merge_labels  = self._merge_labels(state)
             self.suggestions   = []
             self.message       = ""
 
-        def _merge_labels(self, state: dict[str, Any]) -> list[str]:
-            if state["dtype"] == "float":
-                return [f"{s:.4g}" for s in state["splits"]]
-            n_g: int = state["n_bins"]
-            groups: dict[Any, list[str]] = state.get("groups", {})
+        def _merge_labels(self, state: FeatureState) -> list[str]:
+            if state.dtype == FeatureDtype.NUMERIC:
+                return [f"{s:.4g}" for s in (state.splits or [])]
+            n_g: int = state.n_bins
+            groups: dict[int, list[str]] = state.groups or {}
             labels: list[str] = []
             for i in range(n_g - 1):
-                cats_a = groups.get(i, groups.get(str(i), []))
-                cats_b = groups.get(i + 1, groups.get(str(i + 1), []))
+                cats_a = groups.get(i, [])
+                cats_b = groups.get(i + 1, [])
                 if len(cats_a) <= 3 and len(cats_b) <= 3:
                     labels.append(f"[{','.join(cats_a)}] + [{','.join(cats_b)}]")
                 else:
                     labels.append(f"{i}+{i+1}")
             return labels
 
-        def _bin_labels(self, state: dict[str, Any]) -> list[str]:
-            n = state["n_bins"]
-            if state["dtype"] == "float":
-                return list(state["bins"][:n])
-            groups: dict[Any, list[str]] = state.get("groups", {})
+        def _bin_labels(self, state: FeatureState) -> list[str]:
+            n = state.n_bins
+            if state.dtype == FeatureDtype.NUMERIC:
+                bins = state.bins
+                return list(bins[:n]) if isinstance(bins, list) else []
+            groups: dict[int, list[str]] = state.groups or {}
             return [
-                ",".join(groups.get(i, groups.get(str(i), [f"grp{i}"])))
+                ",".join(groups.get(i, [f"grp{i}"]))
                 for i in range(n)
             ]
 
-        def _chart(self, state: dict[str, Any]) -> str:
-            n = state["n_bins"]
+        def _chart(self, state: FeatureState) -> str:
+            n = state.n_bins
             labels = self._bin_labels(state)
-            counts = np.array(state["counts"][:n], dtype=float)
-            er = np.array([v if v is not None else 0.0 for v in state["event_rates"][:n]])
-            woe = state["woe"][:n]
+            counts = np.array(state.counts[:n], dtype=float)
+            er = np.array([v if v is not None else 0.0 for v in state.event_rates[:n]])
+            woe = state.woe[:n]
             total = float(counts.sum()) or 1.0
             pop = counts / total
 
@@ -265,19 +266,19 @@ if _AVAILABLE:
             ax2.tick_params(axis="y", labelcolor="crimson")
             ax2.set_ylim(0, max(float(er.max()) * 1.4, 0.01))
             for xi, w_val, p_val in zip(x_pos, woe, pop):
-                ax1.text(xi, float(p_val) + float(max(pop)) * 0.02, f"{w_val:.2f}", ha="center", va="bottom", fontsize=7, color="#1a1a6e", fontweight="bold")
-            ax1.set_title(f"{self.current_feat}   IV = {state['iv']:.4f}   n_bins = {n}", fontsize=10)
+                ax1.text(float(xi), float(p_val) + float(max(pop)) * 0.02, f"{w_val:.2f}", ha="center", va="bottom", fontsize=7, color="#1a1a6e", fontweight="bold")
+            ax1.set_title(f"{self.current_feat}   IV = {state.iv:.4f}   n_bins = {n}", fontsize=10)
             fig.tight_layout()
             return _fig_to_b64(fig)
 
-        def _stability(self, state: dict[str, Any]) -> str:
-            if "temporal" not in state:
+        def _stability(self, state: FeatureState) -> str:
+            if state.temporal is None:
                 return ""
-            temp = state["temporal"]
-            months = temp["months"]
-            er_by_bin = temp["event_rates"]
-            rsi = temp["rsi"]
-            n = state["n_bins"]
+            temp = state.temporal
+            months = temp.months
+            er_by_bin = temp.event_rates
+            rsi = temp.rsi
+            n = state.n_bins
             labels = self._bin_labels(state)
 
             fig = Figure(figsize=(max(5, len(months) * 0.8), 3.0))
