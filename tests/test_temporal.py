@@ -94,3 +94,29 @@ def test_time_since_col_name_last_days():
 
 def test_time_since_col_name_first_months():
     assert _time_since_col_name("first", "event_date", "months") == "TIME_SINCE_FIRST_EVENT_DATE_months"
+
+from datasci_toolkit.temporal import TemporalFeatureEngineer
+
+# ── _join_tables ─────────────────────────────────────────────────────────────
+def test_join_tables_single():
+    fe = TemporalFeatureEngineer()
+    fe.entity_col_ = "user_id"
+    fe.primary_ = "transactions"
+    result = fe._join_tables(TABLES_SINGLE)
+    assert result.shape == TRANSACTIONS.shape
+    assert set(result.columns) == set(TRANSACTIONS.columns)
+
+def test_join_tables_multi_adds_columns():
+    fe = TemporalFeatureEngineer()
+    fe.entity_col_ = "user_id"
+    fe.primary_ = "transactions"
+    result = fe._join_tables(TABLES_MULTI)
+    assert "tier" in result.columns
+    assert result.shape[0] == TRANSACTIONS.shape[0]
+
+def test_join_tables_multi_null_for_missing_entity():
+    fe = TemporalFeatureEngineer()
+    fe.entity_col_ = "user_id"
+    fe.primary_ = "transactions"
+    result = fe._join_tables(TABLES_MULTI)
+    assert 3 not in result["user_id"].to_list()
