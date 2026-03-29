@@ -391,3 +391,70 @@ def test_check_is_fitted_before_transform():
     fe = TemporalFeatureEngineer().add_aggregation("amount", ["sum"], ["30d"], "transactions")
     with pytest.raises(Exception):
         fe.transform(TABLES_SINGLE)
+
+# ── from_config ──────────────────────────────────────────────────────────────
+CFG = {
+    "meta": {
+        "entity_col":     "user_id",
+        "time_col":       "date",
+        "reference_date": REFERENCE_DATE,
+        "primary":        "transactions",
+    },
+    "aggregations": [
+        {"variable": "amount", "functions": ["sum", "mean"], "windows": ["30d", "inf"], "table": "transactions"},
+    ],
+    "time_since": [
+        {"variable": "date", "from": "last", "unit": "days", "table": "transactions"},
+    ],
+    "ratios": [
+        {"numerator": "SUM_AMOUNT_30d", "denominator": "SUM_AMOUNT_inf"},
+    ],
+}
+
+def test_from_config_produces_correct_columns():
+    fe = TemporalFeatureEngineer.from_config(CFG)
+    result = fe.fit_transform(TABLES_SINGLE)
+    expected = {
+        "user_id", "SUM_AMOUNT_30d", "MEAN_AMOUNT_30d",
+        "SUM_AMOUNT_inf", "MEAN_AMOUNT_inf",
+        "TIME_SINCE_LAST_DATE_days",
+        "RATIO_SUM_AMOUNT_30d__SUM_AMOUNT_inf",
+    }
+    assert expected.issubset(set(result.columns))
+
+def test_from_config_matches_fluent_builder():
+    fe_cfg = TemporalFeatureEngineer.from_config(CFG)
+    result_cfg = fe_cfg.fit_transform(TABLES_SINGLE).sort("user_id")
+
+    fe_fluent = (
+        TemporalFeatureEngineer()
+        .add_aggregation("amount", ["sum", "mean"], ["30d", "inf"], "transactions")
+        .add_time_since("date", from_="last", unit="days", table="transactions")
+        .add_ratio("SUM_AMOUNT_30d", "SUM_AMOUNT_inf")
+    )
+    result_fluent = fe_fluent.fit_transform(
+        TABLES_SINGLE, entity_col="user_id", time_col="date",
+        reference_date=REFERENCE_DATE, primary="transactions",
+    ).sort("user_id")
+
+    for col in result_cfg.columns:
+        if result_cfg[col].dtype == pl.Float64:
+            assert result_cfg[col].to_list() == pytest.approx(
+                result_fluent[col].to_list(), nan_ok=True
+            )
+        else:
+            assert result_cfg[col].to_list() == result_fluent[col].to_list()
+
+def test_from_config_no_aggregations():
+    cfg = {
+        "meta": {
+            "entity_col": "user_id", "time_col": "date",
+            "reference_date": REFERENCE_DATE, "primary": "transactions",
+        },
+        "time_since": [
+            {"variable": "date", "from": "last", "unit": "days", "table": "transactions"},
+        ],
+    }
+    fe = TemporalFeatureEngineer.from_config(cfg)
+    result = fe.fit_transform(TABLES_SINGLE)
+    assert "TIME_SINCE_LAST_DATE_days" in result.columns
