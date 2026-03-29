@@ -39,6 +39,20 @@ def _weighted_dist(X: pl.Series, weights: pl.Series, missing_value: float) -> pl
 
 
 class PSI(BaseEstimator):
+    """Population Stability Index.
+
+    Measures distributional shift between a reference dataset and a monitoring
+    dataset. Fit on the reference, call `score` on any subsequent snapshot.
+
+    Args:
+        q: Number of quantile bins for numeric features.
+        missing_value: Frequency floor applied to empty bins to avoid log(0).
+
+    Attributes:
+        bin_breaks_: Quantile cut points fitted on the reference (numeric only).
+        ref_dist_: Reference frequency distribution as a DataFrame.
+    """
+
     def __init__(self, q: int = 10, missing_value: float = 0.0001):
         self.q = q
         self.missing_value = missing_value
@@ -68,6 +82,12 @@ class PSI(BaseEstimator):
 
 
 class ESI:
+    """Event Stability Index.
+
+    Measures rank stability of a model score across time periods. Returns two
+    variants: V1 (rank-correlation based) and V2 (event-rate-ratio based).
+    """
+
     def score(
         self,
         data: pl.DataFrame,
@@ -134,6 +154,22 @@ class ESI:
 
 
 class StabilityMonitor(BaseEstimator):
+    """Monitors PSI for a set of features over time.
+
+    Fits one `PSI` instance per feature on a reference DataFrame and exposes
+    three scoring modes: against a fixed reference, consecutive period pairs,
+    or arbitrary boolean masks.
+
+    Args:
+        features: Column names to monitor.
+        q: Quantile bins for numeric features (passed to `PSI`).
+        missing_value: Frequency floor for empty bins (passed to `PSI`).
+        col_weight: Optional weight column in the input DataFrame.
+
+    Attributes:
+        psis_: Dict mapping feature name to fitted `PSI` instance.
+    """
+
     def __init__(self, features: list, q: int = 10, missing_value: float = 0.0001, col_weight: str | None = None):
         self.features = features
         self.q = q

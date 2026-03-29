@@ -1,0 +1,62 @@
+site_name: datasci-toolkit
+site_url: https://detrin.github.io/datasci-toolkit
+repo_url: https://github.com/detrin/datasci-toolkit
+repo_name: detrin/datasci-toolkit
+
+theme:
+  name: material
+  palette:
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_source: true
+            show_root_heading: true
+            show_root_full_path: false
+            show_signature_annotations: true
+            separate_signature: true
+            merge_init_into_class: true
+            docstring_style: google
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - admonition
+  - pymdownx.details
+  - tables
+
+nav:
+  - Home: index.md
+  - Tutorials:
+      - Stability (PSI / ESI): tutorials/stability.md
+      - Grouping (WOE / Binning): tutorials/grouping.md
+      - Metrics: tutorials/metrics.md
+      - Model Selection: tutorials/model_selection.md
+      - Label Imputation: tutorials/label_imputation.md
+      - Bin Editor: tutorials/bin_editor.md
+      - Variable Clustering: tutorials/variable_clustering.md
+  - API Reference:
+      - stability: api/stability.md
+      - grouping: api/grouping.md
+      - metrics: api/metrics.md
+      - model_selection: api/model_selection.md
+      - label_imputation: api/label_imputation.md
+      - bin_editor: api/bin_editor.md
+      - variable_clustering: api/variable_clustering.md

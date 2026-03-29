@@ -13,6 +13,20 @@ def _dist_weights(distances: np.ndarray, eps: float = 1e-10) -> np.ndarray:
 
 
 class TargetImputer(BaseEstimator):
+    """Converts predicted probabilities into training rows.
+
+    Args:
+        method: ``"weighted"`` duplicates each row into ``(target=1, w=p)`` +
+            ``(target=0, w=1-p)``; ``"randomized"`` draws a Bernoulli sample;
+            ``"cutoff"`` applies a hard threshold.
+        cutoff: Threshold used when ``method="cutoff"``.
+        seed: Random seed for ``method="randomized"``.
+
+    Attributes:
+        proba_: Probability array stored after `fit`.
+        weights_: Sample weight array stored after `fit`.
+    """
+
     def __init__(
         self,
         method: str = "weighted",
@@ -50,6 +64,26 @@ class TargetImputer(BaseEstimator):
 
 
 class KNNLabelImputer(BaseEstimator):
+    """KNN-based label imputation for missing-outcome records.
+
+    Finds k nearest labeled neighbours in feature space for each unlabeled
+    record. Distance-weighted average of neighbour labels gives P(event).
+    ``transform()`` converts these probabilities to training rows via
+    ``TargetImputer``.
+
+    Args:
+        n_neighbors: Number of nearest neighbours.
+        metric: Distance metric (any sklearn-compatible string).
+        method: Passed to `TargetImputer` — how probabilities become rows.
+        cutoff: Threshold for ``method="cutoff"``.
+        seed: Random seed for ``method="randomized"``.
+
+    Attributes:
+        nn_: Fitted `NearestNeighbors` instance.
+        y_: Labeled target array.
+        weights_: Sample weights for labeled records.
+    """
+
     def __init__(
         self,
         n_neighbors: int = 10,

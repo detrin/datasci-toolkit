@@ -183,6 +183,22 @@ def _bins_rsi(
 
 
 class WOETransformer(BaseEstimator, TransformerMixin):
+    """Encodes features as Weight of Evidence values using pre-computed bin specs.
+
+    Sklearn-compatible transformer (works in `Pipeline`, `GridSearchCV`).
+    Bin specs must be provided at construction — use `StabilityGrouping` or
+    `BinEditor.accept()` to produce them.
+
+    Args:
+        bin_specs: Mapping of feature name to spec dict with keys `dtype`
+            (`"float"` or `"category"`) and `bins` (list of cut points or
+            `{category: group_index}` dict).
+
+    Attributes:
+        binners_: Dict of fitted `OptimalBinning` instances keyed by feature.
+        feature_names_in_: List of feature names seen during `fit`.
+    """
+
     def __init__(self, bin_specs: dict[str, dict[str, Any]] | None = None) -> None:
         self.bin_specs = bin_specs
 
@@ -237,6 +253,27 @@ class WOETransformer(BaseEstimator, TransformerMixin):
 
 
 class StabilityGrouping(BaseEstimator, TransformerMixin):
+    """Stability-constrained optimal binning with WOE encoding.
+
+    Finds optimal bins for each feature using LightGBM, then merges bins whose
+    event rate shifts significantly across time periods (measured by RSI).
+    Requires both a train and validation split plus a time column.
+
+    Args:
+        max_bins: Upper bound on number of bins per feature.
+        stability_threshold: Maximum RSI allowed per bin across time periods.
+            Bins exceeding this are merged with a neighbour.
+        min_leaf_share: Minimum fraction of total records per bin leaf.
+        min_leaf_minority: Minimum records per bin for minority features.
+        important_minorities: Features where `min_leaf_minority` applies.
+        must_have: Features that are never excluded even if unstable.
+
+    Attributes:
+        bin_specs_: Dict of bin definitions produced after fitting.
+        transformer_: Fitted `WOETransformer` instance.
+        excluded_: Features that could not be grouped.
+    """
+
     def __init__(
         self,
         max_bins: int = 10,

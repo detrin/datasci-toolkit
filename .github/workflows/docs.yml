@@ -25,20 +25,10 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: |
-          pip install marimo
-          pip install -e ".[dev]"
+        run: pip install -e ".[dev]"
 
-      - name: Export notebooks to HTML
-        run: |
-          mkdir -p _site
-          for nb in examples/*.py; do
-            name=$(basename "$nb" .py)
-            marimo export html "$nb" -o "_site/${name}.html" --no-include-code
-          done
-
-      - name: Generate index
-        run: python scripts/gen_index.py
+      - name: Build docs
+        run: mkdocs build --strict --site-dir _site
 
       - uses: actions/upload-pages-artifact@v3
         with:

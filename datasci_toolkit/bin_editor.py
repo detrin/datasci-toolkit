@@ -133,6 +133,28 @@ def _cat_state(feat: str, cat_bins: dict[str, int], x: np.ndarray, y: np.ndarray
 
 
 class BinEditor:
+    """Headless state machine for editing bin boundaries.
+
+    Works identically in plain Python scripts, notebooks, and agents. All
+    edits are logged per feature with undo support. Call `accept()` to export
+    the final bin specs dict for use with `WOETransformer`.
+
+    Args:
+        bin_specs: Initial bin specifications — a dict produced by
+            `StabilityGrouping.bin_specs_` or built manually.
+        X: Feature DataFrame matching the features in ``bin_specs``.
+        y: Binary target series (0/1 or float).
+        t: Optional time series for temporal stability metrics.
+        weights: Optional sample weight series.
+        stability_threshold: RSI threshold used to flag unstable bins in the
+            state dict (does not block edits).
+
+    Note:
+        All state is accessible via `state(feat)`, which returns a dict with
+        keys ``bins``, ``n_bins``, ``counts``, ``event_rates``, ``woe``,
+        ``iv``, ``dtype``, ``groups``, and ``temporal``.
+    """
+
     def __init__(
         self,
         bin_specs: dict[str, dict[str, Any]],

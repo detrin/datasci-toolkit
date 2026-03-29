@@ -10,6 +10,29 @@ from sklearn.utils.validation import check_is_fitted
 
 
 class CorrVarClus(BaseEstimator):
+    """Hierarchical correlation clustering for variable reduction.
+
+    Groups features into clusters using average-linkage hierarchical clustering
+    with a correlation distance metric. Ranks features within each cluster by
+    absolute Gini so the most predictive representative can be selected.
+
+    Args:
+        max_correlation: Dendrogram cut height. Features correlated above this
+            threshold end up in the same cluster.
+        max_clusters: Hard cap on number of clusters. Overrides
+            ``max_correlation`` when set.
+        sample: Subsample rows before clustering for speed on large datasets.
+            ``0`` uses all rows.
+
+    Attributes:
+        features_: Column names after dropping zero-variance columns.
+        labels_: Cluster label per feature (1-indexed).
+        Z_: Linkage matrix from ``scipy.cluster.hierarchy.linkage``.
+        corr_line_: The correlation threshold used to cut the dendrogram.
+        cluster_table_: DataFrame with columns ``feature``, ``cluster``,
+            ``gini``, ``rank`` (1 = best in cluster).
+    """
+
     def __init__(
         self,
         max_correlation: float = 0.5,

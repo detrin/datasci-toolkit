@@ -58,6 +58,20 @@ def iv(
 
 
 class BootstrapGini(BaseEstimator):
+    """Bootstrap confidence interval for Gini.
+
+    Args:
+        n_iter: Number of bootstrap resamples.
+        ci_level: Confidence level in percent (e.g. 90.0 for 90% CI).
+        seed: Random seed for reproducibility.
+
+    Attributes:
+        mean_: Mean Gini across bootstrap samples.
+        std_: Standard deviation of bootstrap Gini values.
+        ci_: Tuple ``(lower, upper)`` confidence interval bounds.
+        samples_: Array of all bootstrap Gini values.
+    """
+
     def __init__(
         self,
         n_iter: int = 100,

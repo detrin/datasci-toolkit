@@ -66,6 +66,37 @@ def _cv_auc(
 
 
 class AUCStepwiseLogit(BaseEstimator):
+    """Gini-based stepwise logistic regression.
+
+    Selects features by Gini improvement rather than p-values, with optional
+    correlation filtering, sign enforcement, and cross-validated scoring.
+
+    Args:
+        initial_predictors: Features forced into the model at the start.
+        all_predictors: Candidate pool (defaults to all columns in `X`).
+        selection_method: ``"forward"``, ``"backward"``, or ``"stepwise"``.
+        max_iter: Maximum number of add/remove steps.
+        min_increase: Minimum Gini gain required to add a feature.
+        max_decrease: Maximum Gini drop allowed before removing a feature.
+        max_predictors: Hard cap on model size (0 = unlimited).
+        max_correlation: Reject candidates correlated above this with any
+            already-selected feature.
+        enforce_coef_sign: Reject features that flip a coefficient sign.
+        penalty: Regularisation type passed to `LogisticRegression`.
+        C: Regularisation strength.
+        correlation_sample: Max rows used for the correlation check.
+        use_cv: Score via k-fold CV instead of a held-out validation set.
+        cv_folds: Number of CV folds.
+        cv_seed: Random seed for CV splits.
+        cv_stratify: Use stratified folds.
+
+    Attributes:
+        predictors_: Ordered list of selected feature names.
+        coef_: Coefficients for selected features.
+        intercept_: Model intercept.
+        progress_: DataFrame logging each add/remove step with Gini deltas.
+    """
+
     def __init__(
         self,
         initial_predictors: list[str] | None = None,
