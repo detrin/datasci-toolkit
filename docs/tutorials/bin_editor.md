@@ -16,6 +16,8 @@ WOETransformer / StabilityGrouping → bin_specs dict
 
 ## BinEditor
 
+![WOE chart — numeric feature, 4 bins](../images/bin_editor_woe_numeric.png)
+
 ```python
 import numpy as np
 import polars as pl
@@ -62,6 +64,8 @@ s = editor.split("num", 0.5)
 print("After split — n_bins:", s["n_bins"], "IV:", round(s["iv"], 4))
 ```
 
+![WOE chart after split at 0.5 — 5 bins](../images/bin_editor_woe_split.png)
+
 ### Merging
 
 ```python
@@ -76,6 +80,12 @@ print("After merge — n_bins:", m["n_bins"])
 editor.undo("num")   # revert last operation for this feature
 editor.reset("num")  # revert to original bin_specs
 ```
+
+### Stability chart
+
+Event rate per bin across time periods. Requires `time_periods` to be passed to `BinEditor`.
+
+![Stability chart — event rate per bin over time](../images/bin_editor_stability.png)
 
 ### Suggested splits
 
@@ -99,6 +109,12 @@ final_specs = editor.accept()
 from datasci_toolkit import WOETransformer
 woe = WOETransformer(bin_specs=final_specs).fit(X, y_s)
 ```
+
+### Categorical features
+
+Categorical bins group labels into integer buckets. The chart shows the same WOE bar + event rate overlay.
+
+![WOE chart — categorical feature](../images/bin_editor_woe_categorical.png)
 
 ## BinEditorWidget
 
