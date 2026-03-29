@@ -1,0 +1,152 @@
+{
+  "version": "1",
+  "metadata": {
+    "marimo_version": "0.21.1",
+    "script_metadata_hash": null
+  },
+  "cells": [
+    {
+      "id": "Hbol",
+      "code_hash": "1d0db38904205bec4d6f6f6a1f6cec3e",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "MJUe",
+      "code_hash": "fecdbd6e8ee4f480fedd6a38991cef3e",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><h1 id=\"label-imputation-knnlabelimputer-targetimputer\">Label Imputation \u2014 KNNLabelImputer &amp; TargetImputer</h1>\n<span class=\"paragraph\">Handles the <strong>missing label problem</strong>: a portion of your population has\nunknown outcomes and can't be used directly for supervised training.</span>\n<span class=\"paragraph\">Common scenarios:</span>\n<ul>\n<li>Loan applicants who were rejected \u2014 their default status is never observed</li>\n<li>Holdout/control groups in A/B tests</li>\n<li>Records from before a new monitoring system was deployed</li>\n</ul>\n<h2 id=\"workflow\">Workflow</h2>\n<div class=\"language-scdoc codehilite\"><pre><span></span><code>Labeled data \u2500\u2500\u25ba KNNLabelImputer.fit()\nUnlabeled data \u2500\u25ba KNNLabelImputer.predict_proba() \u2192 p\u0302 per unlabeled record\n                \u2500\u25ba KNNLabelImputer.transform()    \u2192 rows with imputed target + weight\n</code></pre></div>\n<span class=\"paragraph\">Then combine labeled + imputed unlabeled rows for training.</span></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "vblA",
+      "code_hash": "2190fb14fdaba94a5152ded8d9dd4669",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "bkHC",
+      "code_hash": "177371fe29c7f7af0b8d062042030b32",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/html": "<marimo-ui-element object-id='bkHC-0' random-id='a94920ea-3997-b054-5db8-0a0591d4e39f'><marimo-table data-initial-value='[]' data-label='null' data-data='&quot;[{&#92;&quot;f0&#92;&quot;:0.1257302210933933,&#92;&quot;f1&#92;&quot;:1.2928930501938052,&#92;&quot;f2&#92;&quot;:1.1839019117100198,&#92;&quot;f3&#92;&quot;:1.203751746517066,&#92;&quot;split&#92;&quot;:&#92;&quot;labeled&#92;&quot;},{&#92;&quot;f0&#92;&quot;:-0.1321048632913019,&#92;&quot;f1&#92;&quot;:0.45367126425696813,&#92;&quot;f2&#92;&quot;:0.303826845027793,&#92;&quot;f3&#92;&quot;:-0.5884016698305081,&#92;&quot;split&#92;&quot;:&#92;&quot;labeled&#92;&quot;},{&#92;&quot;f0&#92;&quot;:0.6404226504432821,&#92;&quot;f1&#92;&quot;:-1.6901599429769263,&#92;&quot;f2&#92;&quot;:0.19205435028986062,&#92;&quot;f3&#92;&quot;:-1.2106023968143265,&#92;&quot;split&#92;&quot;:&#92;&quot;labeled&#92;&quot;},{&#92;&quot;f0&#92;&quot;:0.9192548342109297,&#92;&quot;f1&#92;&quot;:-0.4808884712387653,&#92;&quot;f2&#92;&quot;:1.524116162135097,&#92;&quot;f3&#92;&quot;:0.19714732881638275,&#92;&quot;split&#92;&quot;:&#92;&quot;unlabeled&#92;&quot;},{&#92;&quot;f0&#92;&quot;:-0.0022445517110371016,&#92;&quot;f1&#92;&quot;:-1.7349021218236254,&#92;&quot;f2&#92;&quot;:-0.9231629134606353,&#92;&quot;f3&#92;&quot;:-0.6531297625640384,&#92;&quot;split&#92;&quot;:&#92;&quot;unlabeled&#92;&quot;},{&#92;&quot;f0&#92;&quot;:-0.35769995938884913,&#92;&quot;f1&#92;&quot;:-0.4917782269297502,&#92;&quot;f2&#92;&quot;:-0.4532950764405963,&#92;&quot;f3&#92;&quot;:1.0777278578870049,&#92;&quot;split&#92;&quot;:&#92;&quot;unlabeled&#92;&quot;}]&quot;' data-total-rows='6' data-total-columns='5' data-max-columns='50' data-banner-text='&quot;&quot;' data-pagination='true' data-page-size='10' data-field-types='[[&quot;f0&quot;,[&quot;number&quot;,&quot;f64&quot;]],[&quot;f1&quot;,[&quot;number&quot;,&quot;f64&quot;]],[&quot;f2&quot;,[&quot;number&quot;,&quot;f64&quot;]],[&quot;f3&quot;,[&quot;number&quot;,&quot;f64&quot;]],[&quot;split&quot;,[&quot;string&quot;,&quot;str&quot;]]]' data-show-filters='true' data-show-download='true' data-show-column-summaries='false' data-show-data-types='true' data-show-page-size-selector='true' data-show-column-explorer='true' data-show-chart-builder='true' data-row-headers='[]' data-has-stable-row-id='false' data-lazy='false' data-preload='false' data-download-file-name='&quot;df&quot;'></marimo-table></marimo-ui-element>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "lEQa",
+      "code_hash": "3a7a38da6539432ab137d901466e8f29",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><h2 id=\"knnlabelimputer\">KNNLabelImputer</h2>\n<span class=\"paragraph\">Finds k nearest labeled neighbors in feature space for each unlabeled\nrecord. Distance-weighted average of neighbor labels gives P(event).</span></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "PKri",
+      "code_hash": "9c36b6bea160a5cf3e1d3202654163bb",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/html": "<marimo-ui-element object-id='PKri-0' random-id='97165441-6208-2bfb-0aa3-091903865106'><marimo-table data-initial-value='[]' data-label='null' data-data='&quot;[{&#92;&quot;record&#92;&quot;:0,&#92;&quot;p_event&#92;&quot;:0.6955},{&#92;&quot;record&#92;&quot;:1,&#92;&quot;p_event&#92;&quot;:0.0},{&#92;&quot;record&#92;&quot;:2,&#92;&quot;p_event&#92;&quot;:0.0},{&#92;&quot;record&#92;&quot;:3,&#92;&quot;p_event&#92;&quot;:0.8343},{&#92;&quot;record&#92;&quot;:4,&#92;&quot;p_event&#92;&quot;:0.0}]&quot;' data-total-rows='5' data-total-columns='2' data-max-columns='50' data-banner-text='&quot;&quot;' data-pagination='true' data-page-size='10' data-field-types='[[&quot;record&quot;,[&quot;integer&quot;,&quot;i64&quot;]],[&quot;p_event&quot;,[&quot;number&quot;,&quot;f64&quot;]]]' data-show-filters='true' data-show-download='true' data-show-column-summaries='false' data-show-data-types='true' data-show-page-size-selector='false' data-show-column-explorer='true' data-show-chart-builder='true' data-row-headers='[]' data-has-stable-row-id='false' data-lazy='false' data-preload='false' data-download-file-name='&quot;df&quot;'></marimo-table></marimo-ui-element>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "Xref",
+      "code_hash": "6224a93ae82db7210ac87cff0eeb2c4e",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><h3 id=\"transform-weighted-duplication\"><code>transform()</code> \u2014 weighted duplication</h3>\n<span class=\"paragraph\"><code>method=\"weighted\"</code> duplicates each unlabeled record into two rows:\none with <code>target=1</code> (weight = p\u0302) and one with <code>target=0</code> (weight = 1 \u2212 p\u0302).\nThis preserves expected event count while keeping all records in training.</span></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "SFPL",
+      "code_hash": "a877bbecc588b6d0ead473dbb2362fb6",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/html": "<marimo-ui-element object-id='SFPL-0' random-id='98e93a18-85bc-20e5-ee55-0c0dfd77966d'><marimo-table data-initial-value='[]' data-label='null' data-data='&quot;[{&#92;&quot;target&#92;&quot;:1.0,&#92;&quot;weight&#92;&quot;:0.695483109340974},{&#92;&quot;target&#92;&quot;:1.0,&#92;&quot;weight&#92;&quot;:0.0},{&#92;&quot;target&#92;&quot;:1.0,&#92;&quot;weight&#92;&quot;:0.0},{&#92;&quot;target&#92;&quot;:1.0,&#92;&quot;weight&#92;&quot;:0.834306861007992},{&#92;&quot;target&#92;&quot;:1.0,&#92;&quot;weight&#92;&quot;:0.0},{&#92;&quot;target&#92;&quot;:1.0,&#92;&quot;weight&#92;&quot;:0.6572934662815035}]&quot;' data-total-rows='6' data-total-columns='2' data-max-columns='50' data-banner-text='&quot;&quot;' data-pagination='true' data-page-size='10' data-field-types='[[&quot;target&quot;,[&quot;number&quot;,&quot;f64&quot;]],[&quot;weight&quot;,[&quot;number&quot;,&quot;f64&quot;]]]' data-show-filters='true' data-show-download='true' data-show-column-summaries='false' data-show-data-types='true' data-show-page-size-selector='true' data-show-column-explorer='true' data-show-chart-builder='true' data-row-headers='[]' data-has-stable-row-id='false' data-lazy='false' data-preload='false' data-download-file-name='&quot;df&quot;'></marimo-table></marimo-ui-element>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "BYtC",
+      "code_hash": "bfc56f0bb96916f3a96e4ea74c1eb54e",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><span class=\"paragraph\">Total weight of imputed rows: <code>200.0</code> (= 200 unlabeled records \u00d7 2)</span></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "RGSE",
+      "code_hash": "ce59d0019c37476b4a5f8544543031a5",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><h2 id=\"targetimputer-standalone-target-assignment\">TargetImputer \u2014 standalone target assignment</h2>\n<span class=\"paragraph\">When you already have probabilities from another source (e.g., a\npropensity model) and just need to convert them to training rows.</span>\n<span class=\"paragraph\">Three strategies:</span>\n<table>\n<thead>\n<tr>\n<th>Method</th>\n<th>Behaviour</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><code>\"weighted\"</code></td>\n<td>Duplicate each row: <code>(target=1, w=p)</code> + <code>(target=0, w=1-p)</code></td>\n</tr>\n<tr>\n<td><code>\"randomized\"</code></td>\n<td>Bernoulli draw: single row, <code>target \u2208 {0,1}</code></td>\n</tr>\n<tr>\n<td><code>\"cutoff\"</code></td>\n<td>Hard threshold at <code>cutoff</code> (default 0.5)</td>\n</tr>\n</tbody>\n</table></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "Kclp",
+      "code_hash": "c26f7115872254e041e01ccbe599bcd8",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/html": "<marimo-ui-element object-id='Kclp-0' random-id='061b4731-ed08-1ace-904d-046a63f2ad7c'><marimo-table data-initial-value='[]' data-label='null' data-data='&quot;[{&#92;&quot;target&#92;&quot;:1.0,&#92;&quot;weight&#92;&quot;:0.1,&#92;&quot;method&#92;&quot;:&#92;&quot;weighted&#92;&quot;},{&#92;&quot;target&#92;&quot;:1.0,&#92;&quot;weight&#92;&quot;:0.3,&#92;&quot;method&#92;&quot;:&#92;&quot;weighted&#92;&quot;},{&#92;&quot;target&#92;&quot;:1.0,&#92;&quot;weight&#92;&quot;:0.55,&#92;&quot;method&#92;&quot;:&#92;&quot;weighted&#92;&quot;},{&#92;&quot;target&#92;&quot;:1.0,&#92;&quot;weight&#92;&quot;:0.7,&#92;&quot;method&#92;&quot;:&#92;&quot;weighted&#92;&quot;},{&#92;&quot;target&#92;&quot;:1.0,&#92;&quot;weight&#92;&quot;:0.9,&#92;&quot;method&#92;&quot;:&#92;&quot;weighted&#92;&quot;},{&#92;&quot;target&#92;&quot;:0.0,&#92;&quot;weight&#92;&quot;:0.9,&#92;&quot;method&#92;&quot;:&#92;&quot;weighted&#92;&quot;},{&#92;&quot;target&#92;&quot;:0.0,&#92;&quot;weight&#92;&quot;:0.7,&#92;&quot;method&#92;&quot;:&#92;&quot;weighted&#92;&quot;},{&#92;&quot;target&#92;&quot;:0.0,&#92;&quot;weight&#92;&quot;:0.44999999999999996,&#92;&quot;method&#92;&quot;:&#92;&quot;weighted&#92;&quot;},{&#92;&quot;target&#92;&quot;:0.0,&#92;&quot;weight&#92;&quot;:0.30000000000000004,&#92;&quot;method&#92;&quot;:&#92;&quot;weighted&#92;&quot;},{&#92;&quot;target&#92;&quot;:0.0,&#92;&quot;weight&#92;&quot;:0.09999999999999998,&#92;&quot;method&#92;&quot;:&#92;&quot;weighted&#92;&quot;}]&quot;' data-total-rows='20' data-total-columns='3' data-max-columns='50' data-banner-text='&quot;&quot;' data-pagination='true' data-page-size='10' data-field-types='[[&quot;target&quot;,[&quot;number&quot;,&quot;f64&quot;]],[&quot;weight&quot;,[&quot;number&quot;,&quot;f64&quot;]],[&quot;method&quot;,[&quot;string&quot;,&quot;str&quot;]]]' data-show-filters='true' data-show-download='true' data-show-column-summaries='true' data-show-data-types='true' data-show-page-size-selector='true' data-show-column-explorer='true' data-show-chart-builder='true' data-row-headers='[]' data-has-stable-row-id='false' data-lazy='false' data-preload='false' data-download-file-name='&quot;df&quot;'></marimo-table></marimo-ui-element>"
+          }
+        }
+      ],
+      "console": []
+    }
+  ]
+}

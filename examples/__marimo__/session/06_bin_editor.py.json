@@ -1,0 +1,265 @@
+{
+  "version": "1",
+  "metadata": {
+    "marimo_version": "0.21.1",
+    "script_metadata_hash": null
+  },
+  "cells": [
+    {
+      "id": "Hbol",
+      "code_hash": "1d0db38904205bec4d6f6f6a1f6cec3e",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "MJUe",
+      "code_hash": "477ea5ba3e823a2f28f7bb272b6b0cf9",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><h1 id=\"bineditor-interactive-headless-binning\">BinEditor \u2014 Interactive &amp; Headless Binning</h1>\n<span class=\"paragraph\"><code>BinEditor</code> is a headless state machine for editing bin boundaries.\nIt works identically in plain Python scripts, notebooks, and agents.</span>\n<span class=\"paragraph\"><code>BinEditorWidget</code> wraps it in an anywidget UI that runs in JupyterLab,\nVS Code notebooks, and Marimo \u2014 no backend changes needed.</span>\n<h2 id=\"architecture\">Architecture</h2>\n<div class=\"language-scdoc codehilite\"><pre><span></span><code>WOETransformer.fit() \u2192 bin_specs dict\n                             \u2502\n                      BinEditor(bin_specs, X, y)   \u2190 headless, testable\n                             \u2502\n                   BinEditorWidget(editor)          \u2190 UI layer only\n</code></pre></div>\n<span class=\"paragraph\">The split between editor and widget means agents can call the editor\ndirectly without any display machinery.</span></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "vblA",
+      "code_hash": "2190fb14fdaba94a5152ded8d9dd4669",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "bkHC",
+      "code_hash": "ca878259afdab787f8d4e3ce7db91a51",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/html": "<marimo-ui-element object-id='bkHC-0' random-id='a88fa2bc-eb59-e828-b9ad-c9a5596e5ad8'><marimo-table data-initial-value='[]' data-label='null' data-data='&quot;[{&#92;&quot;num&#92;&quot;:0.1257302210933933,&#92;&quot;cat&#92;&quot;:&#92;&quot;D&#92;&quot;},{&#92;&quot;num&#92;&quot;:-0.1321048632913019,&#92;&quot;cat&#92;&quot;:&#92;&quot;D&#92;&quot;},{&#92;&quot;num&#92;&quot;:0.6404226504432821,&#92;&quot;cat&#92;&quot;:&#92;&quot;D&#92;&quot;},{&#92;&quot;num&#92;&quot;:0.10490011715303971,&#92;&quot;cat&#92;&quot;:&#92;&quot;B&#92;&quot;}]&quot;' data-total-rows='4' data-total-columns='2' data-max-columns='50' data-banner-text='&quot;&quot;' data-pagination='true' data-page-size='10' data-field-types='[[&quot;num&quot;,[&quot;number&quot;,&quot;f64&quot;]],[&quot;cat&quot;,[&quot;string&quot;,&quot;str&quot;]]]' data-show-filters='true' data-show-download='true' data-show-column-summaries='false' data-show-data-types='true' data-show-page-size-selector='false' data-show-column-explorer='true' data-show-chart-builder='true' data-row-headers='[]' data-has-stable-row-id='false' data-lazy='false' data-preload='false' data-download-file-name='&quot;df&quot;'></marimo-table></marimo-ui-element>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "lEQa",
+      "code_hash": "89ff6f453f6272cd9ce5b7f10ffcbafa",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><h2 id=\"setting-up-bineditor\">Setting up BinEditor</h2>\n<span class=\"paragraph\"><code>bin_specs</code> is the dict produced by <code>WOETransformer.fit()</code> or\n<code>StabilityGrouping.fit()</code>. You can also build it manually.</span>\n<span class=\"paragraph\">For numeric features <code>bins</code> is <code>[-inf, split1, split2, ..., inf]</code>.\nFor categorical features <code>bins</code> is a <code>{category: group_index}</code> dict.</span></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "PKri",
+      "code_hash": "cb903e9837eae1aa1b476b18bb07e0c6",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "application/json": "[\"num\", \"cat\"]"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "Xref",
+      "code_hash": "d02e25c489e38cdccee7d3e91c09d015",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><h2 id=\"inspecting-state-iv-woe-event-rates\">Inspecting state \u2014 IV, WOE, event rates</h2></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "SFPL",
+      "code_hash": "ed23a97d6c567cae2d45dec8acb09835",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/html": "<marimo-ui-element object-id='SFPL-0' random-id='73723cb1-0269-0741-6c5c-d682fb7a6e26'><marimo-table data-initial-value='[]' data-label='null' data-data='&quot;[{&#92;&quot;bin&#92;&quot;:&#92;&quot;-inf to -1&#92;&quot;,&#92;&quot;count&#92;&quot;:167,&#92;&quot;event_rate&#92;&quot;:0.3653,&#92;&quot;woe&#92;&quot;:-0.842},{&#92;&quot;bin&#92;&quot;:&#92;&quot;-1 to 0&#92;&quot;,&#92;&quot;count&#92;&quot;:367,&#92;&quot;event_rate&#92;&quot;:0.3842,&#92;&quot;woe&#92;&quot;:-0.7634},{&#92;&quot;bin&#92;&quot;:&#92;&quot;0 to 1&#92;&quot;,&#92;&quot;count&#92;&quot;:317,&#92;&quot;event_rate&#92;&quot;:0.7918,&#92;&quot;woe&#92;&quot;:1.0373},{&#92;&quot;bin&#92;&quot;:&#92;&quot;1 to inf&#92;&quot;,&#92;&quot;count&#92;&quot;:149,&#92;&quot;event_rate&#92;&quot;:0.8054,&#92;&quot;woe&#92;&quot;:1.1143}]&quot;' data-total-rows='4' data-total-columns='4' data-max-columns='50' data-banner-text='&quot;&quot;' data-pagination='true' data-page-size='10' data-field-types='[[&quot;bin&quot;,[&quot;string&quot;,&quot;str&quot;]],[&quot;count&quot;,[&quot;integer&quot;,&quot;i64&quot;]],[&quot;event_rate&quot;,[&quot;number&quot;,&quot;f64&quot;]],[&quot;woe&quot;,[&quot;number&quot;,&quot;f64&quot;]]]' data-show-filters='true' data-show-download='true' data-show-column-summaries='false' data-show-data-types='true' data-show-page-size-selector='false' data-show-column-explorer='true' data-show-chart-builder='true' data-row-headers='[]' data-has-stable-row-id='false' data-lazy='false' data-preload='false' data-download-file-name='&quot;df&quot;'></marimo-table></marimo-ui-element>"
+          }
+        }
+      ],
+      "console": [
+        {
+          "type": "stream",
+          "name": "stderr",
+          "text": "/Users/danherma/projects-personal/datasci-toolkit/datasci_toolkit/bin_editor.py:21: RuntimeWarning: invalid value encountered in divide\n  event_rates = np.where(counts > 0, events / counts, np.nan)\n",
+          "mimetype": "text/plain"
+        }
+      ]
+    },
+    {
+      "id": "BYtC",
+      "code_hash": "63bd24d644701b356a854cdfc9128bbc",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><span class=\"paragraph\"><strong>IV</strong> = <code>0.7840</code>  |  <strong>RSI</strong> = <code>0.7000</code></span></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "RGSE",
+      "code_hash": "48d5abc32aa3ebb9bb5a6feb7dbde310",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><h2 id=\"editing-split-merge-undo-reset\">Editing: split, merge, undo, reset</h2></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "Kclp",
+      "code_hash": "5780a6274d62bda9d6d8053c38a8c2a7",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/html": "<marimo-ui-element object-id='Kclp-0' random-id='8f338e44-2fa9-ed6c-6da8-60539d0e197b'><marimo-table data-initial-value='[]' data-label='null' data-data='&quot;[{&#92;&quot;bin&#92;&quot;:&#92;&quot;-inf to -1&#92;&quot;,&#92;&quot;woe&#92;&quot;:-0.8417,&#92;&quot;iv&#92;&quot;:0.7817},{&#92;&quot;bin&#92;&quot;:&#92;&quot;-1 to 0&#92;&quot;,&#92;&quot;woe&#92;&quot;:-0.7631,&#92;&quot;iv&#92;&quot;:0.7817},{&#92;&quot;bin&#92;&quot;:&#92;&quot;0 to 0.5&#92;&quot;,&#92;&quot;woe&#92;&quot;:1.0624,&#92;&quot;iv&#92;&quot;:0.7817},{&#92;&quot;bin&#92;&quot;:&#92;&quot;0.5 to 1&#92;&quot;,&#92;&quot;woe&#92;&quot;:0.9947,&#92;&quot;iv&#92;&quot;:0.7817},{&#92;&quot;bin&#92;&quot;:&#92;&quot;1 to inf&#92;&quot;,&#92;&quot;woe&#92;&quot;:1.1146,&#92;&quot;iv&#92;&quot;:0.7817}]&quot;' data-total-rows='5' data-total-columns='3' data-max-columns='50' data-banner-text='&quot;&quot;' data-pagination='true' data-page-size='10' data-field-types='[[&quot;bin&quot;,[&quot;string&quot;,&quot;str&quot;]],[&quot;woe&quot;,[&quot;number&quot;,&quot;f64&quot;]],[&quot;iv&quot;,[&quot;number&quot;,&quot;f64&quot;]]]' data-show-filters='true' data-show-download='true' data-show-column-summaries='false' data-show-data-types='true' data-show-page-size-selector='false' data-show-column-explorer='true' data-show-chart-builder='true' data-row-headers='[]' data-has-stable-row-id='false' data-lazy='false' data-preload='false' data-download-file-name='&quot;df&quot;'></marimo-table></marimo-ui-element>"
+          }
+        }
+      ],
+      "console": [
+        {
+          "type": "stream",
+          "name": "stderr",
+          "text": "/Users/danherma/projects-personal/datasci-toolkit/datasci_toolkit/bin_editor.py:21: RuntimeWarning: invalid value encountered in divide\n  event_rates = np.where(counts > 0, events / counts, np.nan)\n",
+          "mimetype": "text/plain"
+        }
+      ]
+    },
+    {
+      "id": "emfo",
+      "code_hash": "2ae83d83b197d555adcf1873e4ce737e",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><span class=\"paragraph\">After undo \u2014 n_bins: <code>4</code>, IV: <code>0.7840</code></span></span>"
+          }
+        }
+      ],
+      "console": [
+        {
+          "type": "stream",
+          "name": "stderr",
+          "text": "/Users/danherma/projects-personal/datasci-toolkit/datasci_toolkit/bin_editor.py:21: RuntimeWarning: invalid value encountered in divide\n  event_rates = np.where(counts > 0, events / counts, np.nan)\n",
+          "mimetype": "text/plain"
+        }
+      ]
+    },
+    {
+      "id": "Hstk",
+      "code_hash": "aca28a8cc3881b05f837995b7fc375a0",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><h2 id=\"suggested-splits-iv-ranked-candidates\">Suggested splits \u2014 IV-ranked candidates</h2></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "nWHF",
+      "code_hash": "a632e154d4475eca0c73dd226aca357e",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "application/json": "[\"text/plain+float:0.07836704545211202\", \"text/plain+float:0.13860934378880604\", \"text/plain+float:-0.20976371665015386\", \"text/plain+float:0.3311958746187757\", \"text/plain+float:-1.1756183670784914\"]"
+          }
+        }
+      ],
+      "console": [
+        {
+          "type": "stream",
+          "name": "stderr",
+          "text": "/Users/danherma/projects-personal/datasci-toolkit/datasci_toolkit/bin_editor.py:21: RuntimeWarning: invalid value encountered in divide\n  event_rates = np.where(counts > 0, events / counts, np.nan)\n",
+          "mimetype": "text/plain"
+        }
+      ]
+    },
+    {
+      "id": "iLit",
+      "code_hash": "7ee0c5bea92f7f93d49fdc66dbcb15ce",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><h2 id=\"accepting-export-final-bin-specs\">Accepting \u2014 export final bin specs</h2></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "ZHCJ",
+      "code_hash": "acd77bbf7dd3d4ab858e5787f2d85b5b",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "application/json": "{\"num\": {\"dtype\": \"float\", \"bins\": [\"text/plain+float:-inf\", \"text/plain+float:-1.0\", \"text/plain+float:0.0\", \"text/plain+float:0.07836704545211202\", \"text/plain+float:1.0\", \"text/plain+float:inf\"]}, \"cat\": {\"dtype\": \"category\", \"bins\": {\"A\": 0, \"B\": 0, \"C\": 1, \"D\": 2}}}"
+          }
+        }
+      ],
+      "console": [
+        {
+          "type": "stream",
+          "name": "stderr",
+          "text": "/Users/danherma/projects-personal/datasci-toolkit/datasci_toolkit/bin_editor.py:21: RuntimeWarning: invalid value encountered in divide\n  event_rates = np.where(counts > 0, events / counts, np.nan)\n",
+          "mimetype": "text/plain"
+        }
+      ]
+    },
+    {
+      "id": "ROlb",
+      "code_hash": "cd5428af919226f64b4afdd9692df579",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><h2 id=\"bineditorwidget-interactive-ui\">BinEditorWidget \u2014 interactive UI</h2>\n<div class=\"language-python codehilite\"><pre><span></span><code><span class=\"kn\">from</span><span class=\"w\"> </span><span class=\"nn\">datasci_toolkit</span><span class=\"w\"> </span><span class=\"kn\">import</span> <span class=\"n\">BinEditorWidget</span>\n\n<span class=\"n\">widget</span> <span class=\"o\">=</span> <span class=\"n\">BinEditorWidget</span><span class=\"p\">(</span><span class=\"n\">editor</span><span class=\"p\">)</span>\n<span class=\"n\">widget</span><span class=\"o\">.</span><span class=\"n\">show</span><span class=\"p\">()</span>\n</code></pre></div>\n<span class=\"paragraph\">The widget renders in JupyterLab, VS Code notebooks, and Marimo.\nUse the dropdown to switch features, the toolbar to undo/reset/suggest,\nand the merge buttons to remove boundaries. After editing, call\n<code>widget.result_</code> to get the accepted bin specs.</span>\n<span class=\"paragraph\">The widget is purely a rendering shell \u2014 all state lives in <code>BinEditor</code>\nand is fully accessible without the widget.</span></span>"
+          }
+        }
+      ],
+      "console": []
+    }
+  ]
+}

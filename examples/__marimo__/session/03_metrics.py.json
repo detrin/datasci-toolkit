@@ -1,0 +1,178 @@
+{
+  "version": "1",
+  "metadata": {
+    "marimo_version": "0.21.1",
+    "script_metadata_hash": null
+  },
+  "cells": [
+    {
+      "id": "Hbol",
+      "code_hash": "1d0db38904205bec4d6f6f6a1f6cec3e",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "MJUe",
+      "code_hash": "95456ec243b4d2f22b72eee034ad06c8",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><h1 id=\"metrics\">Metrics</h1>\n<span class=\"paragraph\">Standard binary classification metrics with polars-native inputs,\nsample weight support, and period-level breakdowns.</span>\n<table>\n<thead>\n<tr>\n<th>Function</th>\n<th>Description</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><code>gini</code></td>\n<td>2\u00b7AUC \u2212 1, optionally weighted</td>\n</tr>\n<tr>\n<td><code>ks</code></td>\n<td>Kolmogorov\u2013Smirnov statistic</td>\n</tr>\n<tr>\n<td><code>lift</code></td>\n<td>Lift at bottom-perc% by score</td>\n</tr>\n<tr>\n<td><code>iv</code></td>\n<td>Information Value for a binned predictor</td>\n</tr>\n<tr>\n<td><code>BootstrapGini</code></td>\n<td>Bootstrap CI for Gini</td>\n</tr>\n<tr>\n<td><code>feature_power</code></td>\n<td>Gini + IV for every column in a DataFrame</td>\n</tr>\n<tr>\n<td><code>gini_by_period</code></td>\n<td>Gini per time period, with optional population mask</td>\n</tr>\n<tr>\n<td><code>lift_by_period</code></td>\n<td>Lift per time period</td>\n</tr>\n<tr>\n<td><code>plot_metric_by_period</code></td>\n<td>Dual-axis bar+line chart for period metrics</td>\n</tr>\n</tbody>\n</table></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "vblA",
+      "code_hash": "2190fb14fdaba94a5152ded8d9dd4669",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "bkHC",
+      "code_hash": "e81f4a82ed43e6b2c368aee7bd7e2e32",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "lEQa",
+      "code_hash": "0af3314143db2494cfbe59346412f2af",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><h2 id=\"point-in-time-metrics\">Point-in-time metrics</h2></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "PKri",
+      "code_hash": "51deb704fb2a5780263e8c5b1adcedf0",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/html": "<marimo-ui-element object-id='PKri-0' random-id='5379746a-7a90-bc30-2a62-a8f5c0da1262'><marimo-table data-initial-value='[]' data-label='null' data-data='&quot;[{&#92;&quot;metric&#92;&quot;:&#92;&quot;gini&#92;&quot;,&#92;&quot;value&#92;&quot;:0.7557},{&#92;&quot;metric&#92;&quot;:&#92;&quot;ks&#92;&quot;,&#92;&quot;value&#92;&quot;:0.6098},{&#92;&quot;metric&#92;&quot;:&#92;&quot;lift@10%&#92;&quot;,&#92;&quot;value&#92;&quot;:1.8798},{&#92;&quot;metric&#92;&quot;:&#92;&quot;iv&#92;&quot;,&#92;&quot;value&#92;&quot;:12.4074}]&quot;' data-total-rows='4' data-total-columns='2' data-max-columns='50' data-banner-text='&quot;&quot;' data-pagination='true' data-page-size='10' data-field-types='[[&quot;metric&quot;,[&quot;string&quot;,&quot;str&quot;]],[&quot;value&quot;,[&quot;number&quot;,&quot;f64&quot;]]]' data-show-filters='true' data-show-download='true' data-show-column-summaries='false' data-show-data-types='true' data-show-page-size-selector='false' data-show-column-explorer='true' data-show-chart-builder='true' data-row-headers='[]' data-has-stable-row-id='false' data-lazy='false' data-preload='false' data-download-file-name='&quot;df&quot;'></marimo-table></marimo-ui-element>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "Xref",
+      "code_hash": "bae22fa59173e3d34c225a05c5395cfc",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><h2 id=\"bootstrap-gini-confidence-interval\">Bootstrap Gini \u2014 confidence interval</h2></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "SFPL",
+      "code_hash": "1206b22a42d0d151521c5772e60dd3b5",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><table>\n<thead>\n<tr>\n<th></th>\n<th>Value</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>Mean Gini</td>\n<td><code>0.7564</code></td>\n</tr>\n<tr>\n<td>Std</td>\n<td><code>0.0225</code></td>\n</tr>\n<tr>\n<td>90% CI</td>\n<td><code>[0.7219, 0.7960]</code></td>\n</tr>\n</tbody>\n</table></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "BYtC",
+      "code_hash": "00fc66b8b284c3901b2b5e98fd55db54",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><h2 id=\"feature-power-gini-iv-across-all-columns\">Feature power \u2014 Gini + IV across all columns</h2></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "RGSE",
+      "code_hash": "909d299cc8b390eb8d9370afdb11c712",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/html": "<marimo-ui-element object-id='RGSE-0' random-id='2bb01c76-88b0-0b82-721f-5661d7b3cbe0'><marimo-table data-initial-value='[]' data-label='null' data-data='&quot;[{&#92;&quot;feature&#92;&quot;:&#92;&quot;medium&#92;&quot;,&#92;&quot;gini&#92;&quot;:-0.047505,&#92;&quot;iv&#92;&quot;:1.38884},{&#92;&quot;feature&#92;&quot;:&#92;&quot;noise&#92;&quot;,&#92;&quot;gini&#92;&quot;:-0.05307,&#92;&quot;iv&#92;&quot;:1.38884},{&#92;&quot;feature&#92;&quot;:&#92;&quot;strong&#92;&quot;,&#92;&quot;gini&#92;&quot;:-0.068158,&#92;&quot;iv&#92;&quot;:1.38884}]&quot;' data-total-rows='3' data-total-columns='3' data-max-columns='50' data-banner-text='&quot;&quot;' data-pagination='true' data-page-size='10' data-field-types='[[&quot;feature&quot;,[&quot;string&quot;,&quot;str&quot;]],[&quot;gini&quot;,[&quot;number&quot;,&quot;f64&quot;]],[&quot;iv&quot;,[&quot;number&quot;,&quot;f64&quot;]]]' data-show-filters='true' data-show-download='true' data-show-column-summaries='false' data-show-data-types='true' data-show-page-size-selector='false' data-show-column-explorer='true' data-show-chart-builder='true' data-row-headers='[]' data-has-stable-row-id='false' data-lazy='false' data-preload='false' data-download-file-name='&quot;df&quot;'></marimo-table></marimo-ui-element>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "Kclp",
+      "code_hash": "a960e97a0fa887444bc70f15cfa9c17a",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><h2 id=\"gini-and-lift-by-period\">Gini and lift by period</h2></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "emfo",
+      "code_hash": "b17d6db3bc289ebfc6aa1b62aa9ab73b",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/html": "<marimo-ui-element object-id='emfo-0' random-id='af8f513a-8113-a21a-efb2-9ce789d0bfb7'><marimo-table data-initial-value='[]' data-label='null' data-data='&quot;[{&#92;&quot;period&#92;&quot;:0,&#92;&quot;gini&#92;&quot;:0.7635388197185948,&#92;&quot;count&#92;&quot;:200,&#92;&quot;lift&#92;&quot;:1.7117117117117115},{&#92;&quot;period&#92;&quot;:1,&#92;&quot;gini&#92;&quot;:0.8008207386647985,&#92;&quot;count&#92;&quot;:200,&#92;&quot;lift&#92;&quot;:1.941747572815534},{&#92;&quot;period&#92;&quot;:2,&#92;&quot;gini&#92;&quot;:0.7145724608590929,&#92;&quot;count&#92;&quot;:200,&#92;&quot;lift&#92;&quot;:1.8867924528301885},{&#92;&quot;period&#92;&quot;:3,&#92;&quot;gini&#92;&quot;:0.7486000000000002,&#92;&quot;count&#92;&quot;:200,&#92;&quot;lift&#92;&quot;:1.9},{&#92;&quot;period&#92;&quot;:4,&#92;&quot;gini&#92;&quot;:0.7481971153846152,&#92;&quot;count&#92;&quot;:200,&#92;&quot;lift&#92;&quot;:2.0833333333333335}]&quot;' data-total-rows='5' data-total-columns='4' data-max-columns='50' data-banner-text='&quot;&quot;' data-pagination='true' data-page-size='10' data-field-types='[[&quot;period&quot;,[&quot;integer&quot;,&quot;i64&quot;]],[&quot;gini&quot;,[&quot;number&quot;,&quot;f64&quot;]],[&quot;count&quot;,[&quot;integer&quot;,&quot;i64&quot;]],[&quot;lift&quot;,[&quot;number&quot;,&quot;f64&quot;]]]' data-show-filters='true' data-show-download='true' data-show-column-summaries='false' data-show-data-types='true' data-show-page-size-selector='false' data-show-column-explorer='true' data-show-chart-builder='true' data-row-headers='[]' data-has-stable-row-id='false' data-lazy='false' data-preload='false' data-download-file-name='&quot;df&quot;'></marimo-table></marimo-ui-element>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "Hstk",
+      "code_hash": "f27c90bd16f7442d9dfaa0728465eb46",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    }
+  ]
+}

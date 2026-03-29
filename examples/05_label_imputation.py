@@ -83,7 +83,7 @@ def _(mo):
 
 
 @app.cell
-def _(X_lab, X_unl, y_lab):
+def _(X_lab, X_unl, pl, y_lab):
     from datasci_toolkit.label_imputation import KNNLabelImputer
 
     imputer = KNNLabelImputer(n_neighbors=10, method="weighted", metric="minkowski")
@@ -91,12 +91,11 @@ def _(X_lab, X_unl, y_lab):
 
     proba = imputer.predict_proba(X_unl)
 
-    import polars as pl
     pl.DataFrame({
         "record": list(range(5)),
         "p_event": [round(float(p), 4) for p in proba[:5]],
     })
-    return KNNLabelImputer, imputer, pl, proba
+    return KNNLabelImputer, imputer, proba
 
 
 @app.cell
@@ -149,12 +148,10 @@ def _(mo):
 
 
 @app.cell
-def _(np):
+def _(np, pl):
     from datasci_toolkit.label_imputation import TargetImputer
 
     proba_ext = np.array([0.1, 0.3, 0.55, 0.7, 0.9])
-
-    import polars as pl
 
     results = {}
     for method in ("weighted", "randomized", "cutoff"):
@@ -165,7 +162,7 @@ def _(np):
         v.with_columns(pl.lit(k).alias("method"))
         for k, v in results.items()
     ])
-    return TargetImputer, method, pl, proba_ext, results, t
+    return TargetImputer, method, proba_ext, results, t
 
 
 if __name__ == "__main__":

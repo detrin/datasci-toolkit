@@ -124,14 +124,12 @@ def _(X_train, X_val, y_train, y_val):
 
 
 @app.cell
-def _(X_val, model, y_val):
-    import polars as pl
-
+def _(model, pl):
     pl.DataFrame({
         "predictor": model.predictors_,
         "coefficient": [round(float(c), 4) for c in model.coef_],
     })
-    return (pl,)
+    return
 
 
 @app.cell

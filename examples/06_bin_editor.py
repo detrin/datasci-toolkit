@@ -55,7 +55,7 @@ def _(np, pl):
     cats  = rng.choice(["A", "B", "C", "D"], N)
     y     = ((x_num > 0) | (np.isin(cats, ["A", "B"]))).astype(float) * rng.binomial(1, 0.8, N)
 
-    N_MONTHS = 6
+    N_MONTHS = 5
     months = np.repeat(np.arange(N_MONTHS), N // N_MONTHS)
 
     X = pl.DataFrame({"num": x_num.tolist(), "cat": cats.tolist()})

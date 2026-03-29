@@ -1,0 +1,165 @@
+{
+  "version": "1",
+  "metadata": {
+    "marimo_version": "0.21.1",
+    "script_metadata_hash": null
+  },
+  "cells": [
+    {
+      "id": "Hbol",
+      "code_hash": "1d0db38904205bec4d6f6f6a1f6cec3e",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "MJUe",
+      "code_hash": "67742ad6dfb03c56aa87a096464f7756",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><h1 id=\"aucstepwiselogit-gini-based-feature-selection\">AUCStepwiseLogit \u2014 Gini-Based Feature Selection</h1>\n<span class=\"paragraph\">Stepwise logistic regression that uses <strong>Gini (2\u00b7AUC \u2212 1)</strong> as the\nselection criterion instead of p-values or AIC.</span>\n<span class=\"paragraph\"><strong>Why Gini instead of p-values?</strong>\nP-value stepwise selection optimises for statistical inference, not\npredictive performance. Gini-based selection directly maximises what you\nactually care about. For regulated domains it also supports:</span>\n<ul>\n<li><code>max_correlation</code> \u2014 rejects candidates whose pairwise correlation with\n  already-selected features exceeds a threshold</li>\n<li><code>enforce_coef_sign</code> \u2014 rejects features whose coefficient flips sign when\n  added (important for scorecard monotonicity)</li>\n<li><code>use_cv</code> \u2014 use cross-validated Gini instead of validation-set Gini</li>\n</ul></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "vblA",
+      "code_hash": "2190fb14fdaba94a5152ded8d9dd4669",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "bkHC",
+      "code_hash": "7756c08c17eddd9cf4a51695d9cb636f",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/html": "<marimo-ui-element object-id='bkHC-0' random-id='17bdd5b1-db16-3419-28f8-8b759b667834'><marimo-table data-initial-value='[]' data-label='null' data-data='&quot;[{&#92;&quot;f0&#92;&quot;:0.1257302210933933,&#92;&quot;f1&#92;&quot;:0.41925483421092963,&#92;&quot;f2&#92;&quot;:0.8520286603384165,&#92;&quot;f0_clone&#92;&quot;:-0.009456241868287751,&#92;&quot;f1_clone&#92;&quot;:0.4776395740467892,&#92;&quot;noise1&#92;&quot;:0.48940762075201505,&#92;&quot;noise2&#92;&quot;:0.3214733738478813},{&#92;&quot;f0&#92;&quot;:-0.1321048632913019,&#92;&quot;f1&#92;&quot;:-0.5022445517110371,&#92;&quot;f2&#92;&quot;:0.3288854064432271,&#92;&quot;f0_clone&#92;&quot;:-0.19836207461809446,&#92;&quot;f1_clone&#92;&quot;:-0.6418474951753024,&#92;&quot;noise1&#92;&quot;:-1.336546394926626,&#92;&quot;noise2&#92;&quot;:-0.8115841502424164},{&#92;&quot;f0&#92;&quot;:0.6404226504432821,&#92;&quot;f1&#92;&quot;:-0.8576999593888491,&#92;&quot;f2&#92;&quot;:-0.11686194744497216,&#92;&quot;f0_clone&#92;&quot;:0.6322426165294253,&#92;&quot;f1_clone&#92;&quot;:-0.8612656961927058,&#92;&quot;noise1&#92;&quot;:-1.1138308775395456,&#92;&quot;noise2&#92;&quot;:0.4480918224776011}]&quot;' data-total-rows='3' data-total-columns='7' data-max-columns='50' data-banner-text='&quot;&quot;' data-pagination='true' data-page-size='10' data-field-types='[[&quot;f0&quot;,[&quot;number&quot;,&quot;f64&quot;]],[&quot;f1&quot;,[&quot;number&quot;,&quot;f64&quot;]],[&quot;f2&quot;,[&quot;number&quot;,&quot;f64&quot;]],[&quot;f0_clone&quot;,[&quot;number&quot;,&quot;f64&quot;]],[&quot;f1_clone&quot;,[&quot;number&quot;,&quot;f64&quot;]],[&quot;noise1&quot;,[&quot;number&quot;,&quot;f64&quot;]],[&quot;noise2&quot;,[&quot;number&quot;,&quot;f64&quot;]]]' data-show-filters='true' data-show-download='true' data-show-column-summaries='false' data-show-data-types='true' data-show-page-size-selector='false' data-show-column-explorer='true' data-show-chart-builder='true' data-row-headers='[]' data-has-stable-row-id='false' data-lazy='false' data-preload='false' data-download-file-name='&quot;df&quot;'></marimo-table></marimo-ui-element>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "lEQa",
+      "code_hash": "5f5e5308a799348e6a3c31acd9402794",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><h2 id=\"stepwise-selection-with-correlation-filter\">Stepwise selection with correlation filter</h2>\n<span class=\"paragraph\"><code>max_correlation=0.8</code> prevents both <code>f0</code> and <code>f0_clone</code> from being\nselected \u2014 they are nearly identical so only the stronger one enters.</span></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "PKri",
+      "code_hash": "03f2f1c363747f34216b4d3e9360dbf7",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "application/json": "[\"f0_clone\", \"f1_clone\"]"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "Xref",
+      "code_hash": "790a3ca14f5f18a732d92792587359b7",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/html": "<marimo-ui-element object-id='Xref-0' random-id='1f0f62e8-7535-c0de-b4c9-ee1c097824ce'><marimo-table data-initial-value='[]' data-label='null' data-data='&quot;[{&#92;&quot;predictor&#92;&quot;:&#92;&quot;f0_clone&#92;&quot;,&#92;&quot;coefficient&#92;&quot;:0.7987},{&#92;&quot;predictor&#92;&quot;:&#92;&quot;f1_clone&#92;&quot;,&#92;&quot;coefficient&#92;&quot;:0.503}]&quot;' data-total-rows='2' data-total-columns='2' data-max-columns='50' data-banner-text='&quot;&quot;' data-pagination='true' data-page-size='10' data-field-types='[[&quot;predictor&quot;,[&quot;string&quot;,&quot;str&quot;]],[&quot;coefficient&quot;,[&quot;number&quot;,&quot;f64&quot;]]]' data-show-filters='true' data-show-download='true' data-show-column-summaries='false' data-show-data-types='true' data-show-page-size-selector='false' data-show-column-explorer='true' data-show-chart-builder='true' data-row-headers='[]' data-has-stable-row-id='false' data-lazy='false' data-preload='false' data-download-file-name='&quot;df&quot;'></marimo-table></marimo-ui-element>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "SFPL",
+      "code_hash": "e4da37d47fb73a44c1a875d39f276c0f",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><h2 id=\"selection-progress\">Selection progress</h2></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "BYtC",
+      "code_hash": "c3fc0072f66a76a316baa6f81cc1da79",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/html": "<marimo-ui-element object-id='BYtC-0' random-id='3d9ce590-9252-45e0-c128-a88b5b707f78'><marimo-table data-initial-value='[]' data-label='null' data-data='&quot;[{&#92;&quot;iteration&#92;&quot;:0,&#92;&quot;addrm&#92;&quot;:0,&#92;&quot;n_predictors&#92;&quot;:0,&#92;&quot;auc&#92;&quot;:0.5,&#92;&quot;delta&#92;&quot;:0.0,&#92;&quot;predictors&#92;&quot;:[]},{&#92;&quot;iteration&#92;&quot;:1,&#92;&quot;addrm&#92;&quot;:0,&#92;&quot;n_predictors&#92;&quot;:1,&#92;&quot;auc&#92;&quot;:0.7110783952889217,&#92;&quot;delta&#92;&quot;:0.0,&#92;&quot;predictors&#92;&quot;:[&#92;&quot;f0_clone&#92;&quot;]},{&#92;&quot;iteration&#92;&quot;:2,&#92;&quot;addrm&#92;&quot;:0,&#92;&quot;n_predictors&#92;&quot;:2,&#92;&quot;auc&#92;&quot;:0.7452753196460291,&#92;&quot;delta&#92;&quot;:0.0,&#92;&quot;predictors&#92;&quot;:[&#92;&quot;f0_clone&#92;&quot;,&#92;&quot;f1_clone&#92;&quot;]},{&#92;&quot;iteration&#92;&quot;:3,&#92;&quot;addrm&#92;&quot;:0,&#92;&quot;n_predictors&#92;&quot;:2,&#92;&quot;auc&#92;&quot;:0.7452753196460291,&#92;&quot;delta&#92;&quot;:0.0,&#92;&quot;predictors&#92;&quot;:[&#92;&quot;f0_clone&#92;&quot;,&#92;&quot;f1_clone&#92;&quot;]}]&quot;' data-total-rows='4' data-total-columns='6' data-max-columns='50' data-banner-text='&quot;&quot;' data-pagination='true' data-page-size='10' data-field-types='[[&quot;iteration&quot;,[&quot;integer&quot;,&quot;i64&quot;]],[&quot;addrm&quot;,[&quot;integer&quot;,&quot;i64&quot;]],[&quot;n_predictors&quot;,[&quot;integer&quot;,&quot;i64&quot;]],[&quot;auc&quot;,[&quot;number&quot;,&quot;f64&quot;]],[&quot;delta&quot;,[&quot;number&quot;,&quot;f64&quot;]],[&quot;predictors&quot;,[&quot;unknown&quot;,&quot;list[str]&quot;]]]' data-show-filters='true' data-show-download='true' data-show-column-summaries='false' data-show-data-types='true' data-show-page-size-selector='false' data-show-column-explorer='true' data-show-chart-builder='true' data-row-headers='[]' data-has-stable-row-id='false' data-lazy='false' data-preload='false' data-download-file-name='&quot;df&quot;'></marimo-table></marimo-ui-element>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "RGSE",
+      "code_hash": "cc5e1c4da29abab8e22281f59f3c98e9",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><span class=\"paragraph\"><strong>Validation Gini</strong>: <code>0.7453</code></span></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "Kclp",
+      "code_hash": "e5c27db232ad939422223f102053f6e1",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><h2 id=\"cross-validated-selection\">Cross-validated selection</h2>\n<span class=\"paragraph\">Pass <code>use_cv=True</code> to score via k-fold cross-validation on the training\nset rather than a fixed validation split. Slower but avoids overfitting\nthe selection to the validation set.</span></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "emfo",
+      "code_hash": "2f154c40f7503f0d1689e7cf5089e7e8",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "application/json": "[\"f0\", \"f1_clone\", \"f2\"]"
+          }
+        }
+      ],
+      "console": []
+    }
+  ]
+}

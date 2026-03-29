@@ -1,0 +1,204 @@
+{
+  "version": "1",
+  "metadata": {
+    "marimo_version": "0.21.1",
+    "script_metadata_hash": null
+  },
+  "cells": [
+    {
+      "id": "Hbol",
+      "code_hash": "1d0db38904205bec4d6f6f6a1f6cec3e",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "MJUe",
+      "code_hash": "18915f419c4ad34b4101502872eaab96",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><h1 id=\"corrvarclus-correlation-based-variable-clustering\">CorrVarClus \u2014 Correlation-Based Variable Clustering</h1>\n<span class=\"paragraph\">Groups features into clusters by correlation structure. Within each\ncluster, features are ranked by Gini so you can pick the most predictive\nrepresentative per cluster \u2014 useful for removing redundant predictors\nbefore logistic regression.</span>\n<h2 id=\"algorithm\">Algorithm</h2>\n<ol>\n<li>Drop zero-variance columns</li>\n<li>Hierarchical clustering with <code>metric=\"correlation\"</code>, <code>method=\"average\"</code></li>\n<li>Cut the dendrogram at <code>max_correlation</code> (or <code>max_clusters</code>)</li>\n<li>Rank features within each cluster by absolute Gini (descending)</li>\n</ol>\n<span class=\"paragraph\"><code>best_features()</code> returns the top-ranked feature from each cluster.</span></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "vblA",
+      "code_hash": "2190fb14fdaba94a5152ded8d9dd4669",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "bkHC",
+      "code_hash": "661913e0f86915591ee158114ccd31b1",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/html": "<marimo-ui-element object-id='bkHC-0' random-id='3097a713-c463-5e69-1334-23863e283933'><marimo-table data-initial-value='[]' data-label='null' data-data='&quot;[{&#92;&quot;f0&#92;&quot;:0.1257302210933933,&#92;&quot;f1&#92;&quot;:-0.021496253172631735,&#92;&quot;f2&#92;&quot;:0.4109719077561258,&#92;&quot;f3&#92;&quot;:1.524116162135097,&#92;&quot;f4&#92;&quot;:1.604988112136295,&#92;&quot;f5&#92;&quot;:0.8520286603384165},{&#92;&quot;f0&#92;&quot;:-0.1321048632913019,&#92;&quot;f1&#92;&quot;:-0.005879045462392485,&#92;&quot;f2&#92;&quot;:-0.1708577074301983,&#92;&quot;f3&#92;&quot;:-0.9231629134606353,&#92;&quot;f4&#92;&quot;:-0.6580983033546082,&#92;&quot;f5&#92;&quot;:0.3288854064432271},{&#92;&quot;f0&#92;&quot;:0.6404226504432821,&#92;&quot;f1&#92;&quot;:0.6345382659202213,&#92;&quot;f2&#92;&quot;:0.17584798436192933,&#92;&quot;f3&#92;&quot;:-0.4532950764405963,&#92;&quot;f4&#92;&quot;:-0.4208211794640033,&#92;&quot;f5&#92;&quot;:-0.11686194744497216},{&#92;&quot;f0&#92;&quot;:0.10490011715303971,&#92;&quot;f1&#92;&quot;:0.1874255881940386,&#92;&quot;f2&#92;&quot;:-0.21311705065616698,&#92;&quot;f3&#92;&quot;:-0.7827821607990565,&#92;&quot;f4&#92;&quot;:-0.9098713747535733,&#92;&quot;f5&#92;&quot;:0.9782301660508295}]&quot;' data-total-rows='4' data-total-columns='6' data-max-columns='50' data-banner-text='&quot;&quot;' data-pagination='true' data-page-size='10' data-field-types='[[&quot;f0&quot;,[&quot;number&quot;,&quot;f64&quot;]],[&quot;f1&quot;,[&quot;number&quot;,&quot;f64&quot;]],[&quot;f2&quot;,[&quot;number&quot;,&quot;f64&quot;]],[&quot;f3&quot;,[&quot;number&quot;,&quot;f64&quot;]],[&quot;f4&quot;,[&quot;number&quot;,&quot;f64&quot;]],[&quot;f5&quot;,[&quot;number&quot;,&quot;f64&quot;]]]' data-show-filters='true' data-show-download='true' data-show-column-summaries='false' data-show-data-types='true' data-show-page-size-selector='false' data-show-column-explorer='true' data-show-chart-builder='true' data-row-headers='[]' data-has-stable-row-id='false' data-lazy='false' data-preload='false' data-download-file-name='&quot;df&quot;'></marimo-table></marimo-ui-element>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "lEQa",
+      "code_hash": "def361318e5feece5b50293f886e1482",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><h2 id=\"fitting-corrvarclus\">Fitting CorrVarClus</h2></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "PKri",
+      "code_hash": "ef0dcc7144be7861d13799c729a9acd2",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/html": "<marimo-ui-element object-id='PKri-0' random-id='d818ffde-22ee-b3b3-6b9a-94afb2898ec6'><marimo-table data-initial-value='[]' data-label='null' data-data='&quot;[{&#92;&quot;feature&#92;&quot;:&#92;&quot;f0&#92;&quot;,&#92;&quot;cluster&#92;&quot;:1,&#92;&quot;gini&#92;&quot;:0.5205003126954346,&#92;&quot;rank&#92;&quot;:1},{&#92;&quot;feature&#92;&quot;:&#92;&quot;f1&#92;&quot;,&#92;&quot;cluster&#92;&quot;:1,&#92;&quot;gini&#92;&quot;:0.4937961225766103,&#92;&quot;rank&#92;&quot;:2},{&#92;&quot;feature&#92;&quot;:&#92;&quot;f2&#92;&quot;,&#92;&quot;cluster&#92;&quot;:1,&#92;&quot;gini&#92;&quot;:0.4806378986866793,&#92;&quot;rank&#92;&quot;:3},{&#92;&quot;feature&#92;&quot;:&#92;&quot;f3&#92;&quot;,&#92;&quot;cluster&#92;&quot;:2,&#92;&quot;gini&#92;&quot;:0.33564727954971874,&#92;&quot;rank&#92;&quot;:1},{&#92;&quot;feature&#92;&quot;:&#92;&quot;f4&#92;&quot;,&#92;&quot;cluster&#92;&quot;:2,&#92;&quot;gini&#92;&quot;:0.3266791744840525,&#92;&quot;rank&#92;&quot;:2},{&#92;&quot;feature&#92;&quot;:&#92;&quot;f5&#92;&quot;,&#92;&quot;cluster&#92;&quot;:3,&#92;&quot;gini&#92;&quot;:0.03611006879299583,&#92;&quot;rank&#92;&quot;:1}]&quot;' data-total-rows='6' data-total-columns='4' data-max-columns='50' data-banner-text='&quot;&quot;' data-pagination='true' data-page-size='10' data-field-types='[[&quot;feature&quot;,[&quot;string&quot;,&quot;str&quot;]],[&quot;cluster&quot;,[&quot;integer&quot;,&quot;i64&quot;]],[&quot;gini&quot;,[&quot;number&quot;,&quot;f64&quot;]],[&quot;rank&quot;,[&quot;integer&quot;,&quot;u32&quot;]]]' data-show-filters='true' data-show-download='true' data-show-column-summaries='false' data-show-data-types='true' data-show-page-size-selector='true' data-show-column-explorer='true' data-show-chart-builder='true' data-row-headers='[]' data-has-stable-row-id='false' data-lazy='false' data-preload='false' data-download-file-name='&quot;df&quot;'></marimo-table></marimo-ui-element>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "Xref",
+      "code_hash": "29da89fb6e94ed670955da5c1734ada2",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><h2 id=\"best-features-one-representative-per-cluster\">Best features \u2014 one representative per cluster</h2>\n<span class=\"paragraph\">The feature with the highest absolute Gini in each cluster.\nUse these as inputs to <code>AUCStepwiseLogit</code> to avoid multicollinearity.</span></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "SFPL",
+      "code_hash": "66cdd3828532ea9b62f05b084528b1f6",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><span class=\"paragraph\">Best features: <code>['f0', 'f3', 'f5']</code></span></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "BYtC",
+      "code_hash": "b8038d7391aedec2b6442bab49e6452f",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><h2 id=\"cluster-table-gini-rankings-within-each-cluster\">Cluster table \u2014 Gini rankings within each cluster</h2></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "RGSE",
+      "code_hash": "142e40c304f135cef7eb131483bdb491",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/html": "<marimo-ui-element object-id='RGSE-0' random-id='4fd566bb-8428-02d3-e644-67de1f1128f3'><marimo-table data-initial-value='[]' data-label='null' data-data='&quot;[{&#92;&quot;feature&#92;&quot;:&#92;&quot;f0&#92;&quot;,&#92;&quot;cluster&#92;&quot;:1,&#92;&quot;gini&#92;&quot;:0.5205003126954346,&#92;&quot;rank&#92;&quot;:1},{&#92;&quot;feature&#92;&quot;:&#92;&quot;f1&#92;&quot;,&#92;&quot;cluster&#92;&quot;:1,&#92;&quot;gini&#92;&quot;:0.4937961225766103,&#92;&quot;rank&#92;&quot;:2},{&#92;&quot;feature&#92;&quot;:&#92;&quot;f2&#92;&quot;,&#92;&quot;cluster&#92;&quot;:1,&#92;&quot;gini&#92;&quot;:0.4806378986866793,&#92;&quot;rank&#92;&quot;:3},{&#92;&quot;feature&#92;&quot;:&#92;&quot;f3&#92;&quot;,&#92;&quot;cluster&#92;&quot;:2,&#92;&quot;gini&#92;&quot;:0.33564727954971874,&#92;&quot;rank&#92;&quot;:1},{&#92;&quot;feature&#92;&quot;:&#92;&quot;f4&#92;&quot;,&#92;&quot;cluster&#92;&quot;:2,&#92;&quot;gini&#92;&quot;:0.3266791744840525,&#92;&quot;rank&#92;&quot;:2},{&#92;&quot;feature&#92;&quot;:&#92;&quot;f5&#92;&quot;,&#92;&quot;cluster&#92;&quot;:3,&#92;&quot;gini&#92;&quot;:0.03611006879299583,&#92;&quot;rank&#92;&quot;:1}]&quot;' data-total-rows='6' data-total-columns='4' data-max-columns='50' data-banner-text='&quot;&quot;' data-pagination='true' data-page-size='10' data-field-types='[[&quot;feature&quot;,[&quot;string&quot;,&quot;str&quot;]],[&quot;cluster&quot;,[&quot;integer&quot;,&quot;i64&quot;]],[&quot;gini&quot;,[&quot;number&quot;,&quot;f64&quot;]],[&quot;rank&quot;,[&quot;integer&quot;,&quot;u32&quot;]]]' data-show-filters='true' data-show-download='true' data-show-column-summaries='false' data-show-data-types='true' data-show-page-size-selector='true' data-show-column-explorer='true' data-show-chart-builder='true' data-row-headers='[]' data-has-stable-row-id='false' data-lazy='false' data-preload='false' data-download-file-name='&quot;df&quot;'></marimo-table></marimo-ui-element>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "Kclp",
+      "code_hash": "c68e2d70f4bfa8190b455b4c79e3e55b",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><h2 id=\"dendrogram\">Dendrogram</h2>\n<span class=\"paragraph\">Visualises the hierarchical clustering. The horizontal dashed line shows\nthe <code>max_correlation</code> cut \u2014 clusters are formed by cutting at that height.</span></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "emfo",
+      "code_hash": "7fc7c673c4e73744d19a27509fb1812e",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "Hstk",
+      "code_hash": "93aa865501d98229c14ef7644c0bdf6e",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><h2 id=\"strict-threshold-more-clusters\">Strict threshold \u2014 more clusters</h2>\n<span class=\"paragraph\">Lower <code>max_correlation</code> forces a finer split.</span></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "nWHF",
+      "code_hash": "6a3cb705a1218705ea53a0fb5d6e1061",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><span class=\"paragraph\">Clusters at 0.5: <code>3</code> | best: <code>['f0', 'f3', 'f5']</code></span></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "iLit",
+      "code_hash": "fecc8b5216945e65a6e8d9280d063f05",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><h2 id=\"typical-workflow\">Typical workflow</h2>\n<div class=\"language-python codehilite\"><pre><span></span><code><span class=\"kn\">from</span><span class=\"w\"> </span><span class=\"nn\">datasci_toolkit</span><span class=\"w\"> </span><span class=\"kn\">import</span> <span class=\"n\">CorrVarClus</span><span class=\"p\">,</span> <span class=\"n\">AUCStepwiseLogit</span>\n\n<span class=\"n\">cc</span> <span class=\"o\">=</span> <span class=\"n\">CorrVarClus</span><span class=\"p\">(</span><span class=\"n\">max_correlation</span><span class=\"o\">=</span><span class=\"mf\">0.5</span><span class=\"p\">)</span><span class=\"o\">.</span><span class=\"n\">fit</span><span class=\"p\">(</span><span class=\"n\">X_train</span><span class=\"p\">,</span> <span class=\"n\">y_train</span><span class=\"p\">)</span>\n<span class=\"n\">reduced_features</span> <span class=\"o\">=</span> <span class=\"n\">cc</span><span class=\"o\">.</span><span class=\"n\">best_features</span><span class=\"p\">()</span>\n\n<span class=\"n\">model</span> <span class=\"o\">=</span> <span class=\"n\">AUCStepwiseLogit</span><span class=\"p\">(</span><span class=\"n\">max_predictors</span><span class=\"o\">=</span><span class=\"mi\">5</span><span class=\"p\">)</span><span class=\"o\">.</span><span class=\"n\">fit</span><span class=\"p\">(</span>\n    <span class=\"n\">X_train</span><span class=\"o\">.</span><span class=\"n\">select</span><span class=\"p\">(</span><span class=\"n\">reduced_features</span><span class=\"p\">),</span> <span class=\"n\">y_train</span><span class=\"p\">,</span>\n    <span class=\"n\">X_val</span><span class=\"o\">=</span><span class=\"n\">X_val</span><span class=\"o\">.</span><span class=\"n\">select</span><span class=\"p\">(</span><span class=\"n\">reduced_features</span><span class=\"p\">),</span> <span class=\"n\">y_val</span><span class=\"o\">=</span><span class=\"n\">y_val</span><span class=\"p\">,</span>\n<span class=\"p\">)</span>\n</code></pre></div></span>"
+          }
+        }
+      ],
+      "console": []
+    }
+  ]
+}

@@ -1,0 +1,165 @@
+{
+  "version": "1",
+  "metadata": {
+    "marimo_version": "0.21.1",
+    "script_metadata_hash": null
+  },
+  "cells": [
+    {
+      "id": "Hbol",
+      "code_hash": "1d0db38904205bec4d6f6f6a1f6cec3e",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "MJUe",
+      "code_hash": "e6dec2840537c143c4f5d2a3f1ba3057",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><h1 id=\"stability-monitoring-psi-esi-stabilitymonitor\">Stability Monitoring \u2014 PSI, ESI, StabilityMonitor</h1>\n<span class=\"paragraph\">Detect feature drift over time. Two metrics:</span>\n<ul>\n<li><strong>PSI</strong> (Population Stability Index): distribution shift between a reference period and later periods.</li>\n<li><strong>ESI</strong> (Elena's Stability Index): rank-order stability of a categorical variable's event rates across time.\n  PSI can be flat while ESI detects silent reordering drift.</li>\n</ul></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "vblA",
+      "code_hash": "2190fb14fdaba94a5152ded8d9dd4669",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "bkHC",
+      "code_hash": "d6ab37f97d97e6de5c19e78961fa9d4b",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/html": "<marimo-ui-element object-id='bkHC-0' random-id='0a380747-09b4-f551-7378-b71320cf2068'><marimo-table data-initial-value='[]' data-label='null' data-data='&quot;[{&#92;&quot;month&#92;&quot;:0,&#92;&quot;feature&#92;&quot;:0.1257302210933933,&#92;&quot;cat&#92;&quot;:&#92;&quot;A&#92;&quot;,&#92;&quot;target&#92;&quot;:0.0,&#92;&quot;base&#92;&quot;:1},{&#92;&quot;month&#92;&quot;:0,&#92;&quot;feature&#92;&quot;:-0.1321048632913019,&#92;&quot;cat&#92;&quot;:&#92;&quot;B&#92;&quot;,&#92;&quot;target&#92;&quot;:0.0,&#92;&quot;base&#92;&quot;:1},{&#92;&quot;month&#92;&quot;:0,&#92;&quot;feature&#92;&quot;:0.6404226504432821,&#92;&quot;cat&#92;&quot;:&#92;&quot;D&#92;&quot;,&#92;&quot;target&#92;&quot;:0.0,&#92;&quot;base&#92;&quot;:1},{&#92;&quot;month&#92;&quot;:0,&#92;&quot;feature&#92;&quot;:0.10490011715303971,&#92;&quot;cat&#92;&quot;:&#92;&quot;C&#92;&quot;,&#92;&quot;target&#92;&quot;:0.0,&#92;&quot;base&#92;&quot;:1},{&#92;&quot;month&#92;&quot;:0,&#92;&quot;feature&#92;&quot;:-0.535669373161111,&#92;&quot;cat&#92;&quot;:&#92;&quot;B&#92;&quot;,&#92;&quot;target&#92;&quot;:0.0,&#92;&quot;base&#92;&quot;:1},{&#92;&quot;month&#92;&quot;:0,&#92;&quot;feature&#92;&quot;:0.36159505490948474,&#92;&quot;cat&#92;&quot;:&#92;&quot;C&#92;&quot;,&#92;&quot;target&#92;&quot;:1.0,&#92;&quot;base&#92;&quot;:1},{&#92;&quot;month&#92;&quot;:0,&#92;&quot;feature&#92;&quot;:1.3040000451301372,&#92;&quot;cat&#92;&quot;:&#92;&quot;B&#92;&quot;,&#92;&quot;target&#92;&quot;:0.0,&#92;&quot;base&#92;&quot;:1},{&#92;&quot;month&#92;&quot;:0,&#92;&quot;feature&#92;&quot;:0.9470809631292422,&#92;&quot;cat&#92;&quot;:&#92;&quot;A&#92;&quot;,&#92;&quot;target&#92;&quot;:0.0,&#92;&quot;base&#92;&quot;:1},{&#92;&quot;month&#92;&quot;:0,&#92;&quot;feature&#92;&quot;:-0.7037352358069926,&#92;&quot;cat&#92;&quot;:&#92;&quot;D&#92;&quot;,&#92;&quot;target&#92;&quot;:1.0,&#92;&quot;base&#92;&quot;:1},{&#92;&quot;month&#92;&quot;:0,&#92;&quot;feature&#92;&quot;:-1.2654214710460525,&#92;&quot;cat&#92;&quot;:&#92;&quot;C&#92;&quot;,&#92;&quot;target&#92;&quot;:0.0,&#92;&quot;base&#92;&quot;:1}]&quot;' data-total-rows='6000' data-total-columns='5' data-max-columns='50' data-banner-text='&quot;&quot;' data-pagination='true' data-page-size='10' data-field-types='[[&quot;month&quot;,[&quot;integer&quot;,&quot;i64&quot;]],[&quot;feature&quot;,[&quot;number&quot;,&quot;f64&quot;]],[&quot;cat&quot;,[&quot;string&quot;,&quot;str&quot;]],[&quot;target&quot;,[&quot;number&quot;,&quot;f64&quot;]],[&quot;base&quot;,[&quot;integer&quot;,&quot;i64&quot;]]]' data-show-filters='true' data-show-download='true' data-show-column-summaries='true' data-show-data-types='true' data-show-page-size-selector='true' data-show-column-explorer='true' data-show-chart-builder='true' data-row-headers='[]' data-has-stable-row-id='false' data-lazy='false' data-preload='false' data-download-file-name='&quot;df&quot;'></marimo-table></marimo-ui-element>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "lEQa",
+      "code_hash": "fc2f712b116393437805707d544bd13c",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><h2 id=\"psi-fit-on-months-02-score-months-311\">PSI \u2014 fit on months 0\u20132, score months 3\u201311</h2></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "PKri",
+      "code_hash": "fbb4181589f13279a04b2fee46ab648e",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/html": "<marimo-ui-element object-id='PKri-0' random-id='7bab4b6f-0575-063a-7a97-757ff03fffe7'><marimo-table data-initial-value='[]' data-label='null' data-data='&quot;[{&#92;&quot;month&#92;&quot;:3,&#92;&quot;psi&#92;&quot;:0.0128},{&#92;&quot;month&#92;&quot;:4,&#92;&quot;psi&#92;&quot;:0.0115},{&#92;&quot;month&#92;&quot;:5,&#92;&quot;psi&#92;&quot;:0.0076},{&#92;&quot;month&#92;&quot;:6,&#92;&quot;psi&#92;&quot;:0.0652},{&#92;&quot;month&#92;&quot;:7,&#92;&quot;psi&#92;&quot;:0.1397},{&#92;&quot;month&#92;&quot;:8,&#92;&quot;psi&#92;&quot;:0.2511},{&#92;&quot;month&#92;&quot;:9,&#92;&quot;psi&#92;&quot;:0.4414},{&#92;&quot;month&#92;&quot;:10,&#92;&quot;psi&#92;&quot;:0.505},{&#92;&quot;month&#92;&quot;:11,&#92;&quot;psi&#92;&quot;:0.8994}]&quot;' data-total-rows='9' data-total-columns='2' data-max-columns='50' data-banner-text='&quot;&quot;' data-pagination='true' data-page-size='10' data-field-types='[[&quot;month&quot;,[&quot;integer&quot;,&quot;i64&quot;]],[&quot;psi&quot;,[&quot;number&quot;,&quot;f64&quot;]]]' data-show-filters='true' data-show-download='true' data-show-column-summaries='false' data-show-data-types='true' data-show-page-size-selector='true' data-show-column-explorer='true' data-show-chart-builder='true' data-row-headers='[]' data-has-stable-row-id='false' data-lazy='false' data-preload='false' data-download-file-name='&quot;df&quot;'></marimo-table></marimo-ui-element>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "Xref",
+      "code_hash": "e563569503e9c65217787d8d4a5d88be",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "SFPL",
+      "code_hash": "7097dad3a35dbc9f112b2e357eb38c6a",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><h2 id=\"stabilitymonitor-score-all-features-across-all-months\">StabilityMonitor \u2014 score all features across all months</h2>\n<span class=\"paragraph\">Fits on a reference period, scores every subsequent month in one call.</span></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "BYtC",
+      "code_hash": "69b1d1614b775d53348649f20e118a1d",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/html": "<marimo-ui-element object-id='BYtC-0' random-id='942cc463-17c6-d5f6-5292-da8939fb5970'><marimo-table data-initial-value='[]' data-label='null' data-data='&quot;[{&#92;&quot;feature&#92;&quot;:&#92;&quot;feature&#92;&quot;,&#92;&quot;month&#92;&quot;:3,&#92;&quot;psi&#92;&quot;:0.012830823530064386},{&#92;&quot;feature&#92;&quot;:&#92;&quot;feature&#92;&quot;,&#92;&quot;month&#92;&quot;:4,&#92;&quot;psi&#92;&quot;:0.011502572991200727},{&#92;&quot;feature&#92;&quot;:&#92;&quot;feature&#92;&quot;,&#92;&quot;month&#92;&quot;:5,&#92;&quot;psi&#92;&quot;:0.0076401788000985986},{&#92;&quot;feature&#92;&quot;:&#92;&quot;feature&#92;&quot;,&#92;&quot;month&#92;&quot;:6,&#92;&quot;psi&#92;&quot;:0.06524005463269844},{&#92;&quot;feature&#92;&quot;:&#92;&quot;feature&#92;&quot;,&#92;&quot;month&#92;&quot;:7,&#92;&quot;psi&#92;&quot;:0.13972389797277385},{&#92;&quot;feature&#92;&quot;:&#92;&quot;feature&#92;&quot;,&#92;&quot;month&#92;&quot;:8,&#92;&quot;psi&#92;&quot;:0.25109734586038485},{&#92;&quot;feature&#92;&quot;:&#92;&quot;feature&#92;&quot;,&#92;&quot;month&#92;&quot;:9,&#92;&quot;psi&#92;&quot;:0.4413992354262345},{&#92;&quot;feature&#92;&quot;:&#92;&quot;feature&#92;&quot;,&#92;&quot;month&#92;&quot;:10,&#92;&quot;psi&#92;&quot;:0.5050466385439475},{&#92;&quot;feature&#92;&quot;:&#92;&quot;feature&#92;&quot;,&#92;&quot;month&#92;&quot;:11,&#92;&quot;psi&#92;&quot;:0.8994123195658205}]&quot;' data-total-rows='9' data-total-columns='3' data-max-columns='50' data-banner-text='&quot;&quot;' data-pagination='true' data-page-size='10' data-field-types='[[&quot;feature&quot;,[&quot;string&quot;,&quot;str&quot;]],[&quot;month&quot;,[&quot;integer&quot;,&quot;i64&quot;]],[&quot;psi&quot;,[&quot;number&quot;,&quot;f64&quot;]]]' data-show-filters='true' data-show-download='true' data-show-column-summaries='false' data-show-data-types='true' data-show-page-size-selector='true' data-show-column-explorer='true' data-show-chart-builder='true' data-row-headers='[]' data-has-stable-row-id='false' data-lazy='false' data-preload='false' data-download-file-name='&quot;df&quot;'></marimo-table></marimo-ui-element>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "RGSE",
+      "code_hash": "a1abafda9bcd0aa76cace84d2db9055b",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><h2 id=\"esi-rank-order-stability-of-a-categorical-variable\">ESI \u2014 rank-order stability of a categorical variable</h2></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "Kclp",
+      "code_hash": "a1aff6030e789d4b9e18cfbdc4275fb5",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "application/json": "{\"v1\": \"text/plain+float:0.5\", \"v2\": \"text/plain+float:0.25\"}"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "emfo",
+      "code_hash": "7f5c8be0da1f07013d8c73c553190b2e",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><span class=\"paragraph\"><strong>ESI v1</strong> (max-rank ratio): <code>0.500</code>\n<strong>ESI v2</strong> (rank-product mean): <code>0.250</code></span>\n<span class=\"paragraph\">Values near 1.0 = stable ordering. After month 6 the \"A\"/\"D\" categories\nswap rank, so both metrics drop well below 1.</span></span>"
+          }
+        }
+      ],
+      "console": []
+    }
+  ]
+}
