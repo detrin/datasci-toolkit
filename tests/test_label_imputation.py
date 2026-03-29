@@ -2,7 +2,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from datasci_toolkit.reject_inference import (
+from datasci_toolkit.label_imputation import (
     TargetImputer,
     KNNLabelImputer,
     _dist_weights,
