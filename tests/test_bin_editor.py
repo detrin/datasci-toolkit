@@ -44,7 +44,7 @@ def test_bin_stats_counts_sum_to_total() -> None:
     w = np.ones(4)
     a = np.array([0, 0, 1, 2])
     s = _bin_stats(y, w, a, 3)
-    assert s["counts"][:3].sum() == pytest.approx(4.0)
+    assert s.counts[:3].sum() == pytest.approx(4.0)
 
 
 def test_bin_stats_event_rates_in_range() -> None:
@@ -52,7 +52,7 @@ def test_bin_stats_event_rates_in_range() -> None:
     w = np.ones(100)
     a = RNG.integers(0, 4, 100)
     s = _bin_stats(y, w, a, 3)
-    rates = s["event_rates"][:3]
+    rates = s.event_rates[:3]
     assert np.all((rates >= 0) | np.isnan(rates))
     assert np.all((rates <= 1) | np.isnan(rates))
 
@@ -62,7 +62,7 @@ def test_bin_stats_woe_finite() -> None:
     w = np.ones(200)
     a = RNG.integers(0, 5, 200)
     s = _bin_stats(y, w, a, 4)
-    assert np.all(np.isfinite(s["woe"]))
+    assert np.all(np.isfinite(s.woe))
 
 
 def test_bin_stats_iv_nonneg() -> None:
@@ -70,7 +70,7 @@ def test_bin_stats_iv_nonneg() -> None:
     w = np.ones(200)
     a = RNG.integers(0, 4, 200)
     s = _bin_stats(y, w, a, 3)
-    assert s["iv"] >= 0.0
+    assert s.iv >= 0.0
 
 
 # --- _num_assign ---

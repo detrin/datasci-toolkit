@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
@@ -9,6 +10,29 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import KFold, StratifiedKFold
 from sklearn.utils.validation import check_is_fitted
+
+
+@dataclass(frozen=True)
+class ScoreResult:
+    auc: float
+    signs_consistent: bool
+
+
+@dataclass
+class TrainValData:
+    X_train: np.ndarray
+    y_train: np.ndarray
+    weights_train: np.ndarray | None
+    X_val: np.ndarray
+    y_val: np.ndarray
+    weights_val: np.ndarray | None
+
+
+@dataclass
+class StepResult:
+    predictors: list[str]
+    auc: float
+    log_entries: list[dict[str, Any]]
 
 
 def _corr_matrix(X: np.ndarray, sample: int) -> np.ndarray:
@@ -136,25 +160,20 @@ class AUCStepwiseLogit(BaseEstimator):
     def _score(
         self,
         predictors: list[str],
-        X_tr: np.ndarray,
-        y_tr: np.ndarray,
-        w_tr: np.ndarray | None,
-        X_va: np.ndarray,
-        y_va: np.ndarray,
-        w_va: np.ndarray | None,
+        data: TrainValData,
         col_idx: dict[str, int],
-        cache: dict[frozenset[str], tuple[float, bool]],
-    ) -> tuple[float, bool]:
+        cache: dict[frozenset[str], ScoreResult],
+    ) -> ScoreResult:
         key = frozenset(predictors)
         if key in cache:
             return cache[key]
         col_indices = [col_idx[feat] for feat in predictors]
-        model = _fit_logit(X_tr[:, col_indices], y_tr, w_tr, self.penalty, self.C)
+        model = _fit_logit(data.X_train[:, col_indices], data.y_train, data.weights_train, self.penalty, self.C)
         if self.use_cv:
-            score = _cv_auc(X_tr[:, col_indices], y_tr, w_tr, self.penalty, self.C, self.cv_folds, self.cv_seed, self.cv_stratify)
+            auc = _cv_auc(data.X_train[:, col_indices], data.y_train, data.weights_train, self.penalty, self.C, self.cv_folds, self.cv_seed, self.cv_stratify)
         else:
-            score = _auc(y_va, model.predict_proba(X_va[:, col_indices])[:, 1], w_va)
-        result = (score, _same_sign(model.coef_.ravel()))
+            auc = _auc(data.y_val, model.predict_proba(data.X_val[:, col_indices])[:, 1], data.weights_val)
+        result = ScoreResult(auc=auc, signs_consistent=_same_sign(model.coef_.ravel()))
         cache[key] = result
         return result
 
@@ -180,30 +199,37 @@ class AUCStepwiseLogit(BaseEstimator):
         y_val: pl.Series | None,
         weights: pl.Series | None,
         weights_val: pl.Series | None,
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray | None, np.ndarray, np.ndarray, np.ndarray | None]:
-        X_tr = X.to_numpy().astype(float)
-        y_tr = y.cast(pl.Float64).to_numpy()
-        w_tr = weights.cast(pl.Float64).to_numpy() if weights is not None else None
+    ) -> TrainValData:
+        X_train = X.to_numpy().astype(float)
+        y_train = y.cast(pl.Float64).to_numpy()
+        weights_train = weights.cast(pl.Float64).to_numpy() if weights is not None else None
 
         if self.use_cv:
             if X_val is not None and y_val is not None:
-                X_va = np.vstack([X_tr, X_val.to_numpy().astype(float)])
-                y_va = np.concatenate([y_tr, y_val.cast(pl.Float64).to_numpy()])
-                w_va: np.ndarray | None = (
-                    np.concatenate([w_tr, weights_val.cast(pl.Float64).to_numpy()])
-                    if w_tr is not None and weights_val is not None
-                    else w_tr
+                X_validation = np.vstack([X_train, X_val.to_numpy().astype(float)])
+                y_validation = np.concatenate([y_train, y_val.cast(pl.Float64).to_numpy()])
+                weights_validation: np.ndarray | None = (
+                    np.concatenate([weights_train, weights_val.cast(pl.Float64).to_numpy()])
+                    if weights_train is not None and weights_val is not None
+                    else weights_train
                 )
             else:
-                X_va, y_va, w_va = X_tr, y_tr, w_tr
+                X_validation, y_validation, weights_validation = X_train, y_train, weights_train
         elif X_val is not None and y_val is not None:
-            X_va = X_val.to_numpy().astype(float)
-            y_va = y_val.cast(pl.Float64).to_numpy()
-            w_va = weights_val.cast(pl.Float64).to_numpy() if weights_val is not None else None
+            X_validation = X_val.to_numpy().astype(float)
+            y_validation = y_val.cast(pl.Float64).to_numpy()
+            weights_validation = weights_val.cast(pl.Float64).to_numpy() if weights_val is not None else None
         else:
-            X_va, y_va, w_va = X_tr, y_tr, w_tr
+            X_validation, y_validation, weights_validation = X_train, y_train, weights_train
 
-        return X_tr, y_tr, w_tr, X_va, y_va, w_va
+        return TrainValData(
+            X_train=X_train,
+            y_train=y_train,
+            weights_train=weights_train,
+            X_val=X_validation,
+            y_val=y_validation,
+            weights_val=weights_validation,
+        )
 
     def _step_forward(
         self,
@@ -211,29 +237,26 @@ class AUCStepwiseLogit(BaseEstimator):
         current_preds: list[str],
         current_auc: float,
         iteration: int,
-        X_tr: np.ndarray,
-        y_tr: np.ndarray,
-        w_tr: np.ndarray | None,
-        X_va: np.ndarray,
-        y_va: np.ndarray,
-        w_va: np.ndarray | None,
+        data: TrainValData,
         col_idx: dict[str, int],
-        cache: dict[frozenset[str], tuple[float, bool]],
+        cache: dict[frozenset[str], ScoreResult],
         corr: np.ndarray,
         min_inc: float,
         max_dec: float,
-    ) -> tuple[list[str], float, list[dict[str, Any]]]:
+    ) -> StepResult:
         entries: list[dict[str, Any]] = []
         if self.max_predictors > 0 and len(current_preds) >= self.max_predictors:
-            return list(current_preds), current_auc, entries
-        for pred in [p for p in candidates if p not in current_preds]:
-            cands = current_preds + [pred]
-            auc, sgn = self._score(cands, X_tr, y_tr, w_tr, X_va, y_va, w_va, col_idx, cache)
+            return StepResult(predictors=list(current_preds), auc=current_auc, log_entries=entries)
+        for pred in candidates:
+            if pred in current_preds:
+                continue
+            candidate_set = current_preds + [pred]
+            scored = self._score(candidate_set, data, col_idx, cache)
             entries.append({
-                "iteration": iteration, "addrm": 1, "predictors": cands,
-                "n_predictors": len(cands), "auc": auc, "delta": auc - current_auc,
-                "used": False, "same_sign": sgn,
-                "max_corr": _max_abs_corr(corr, [col_idx[p] for p in cands]),
+                "iteration": iteration, "addrm": 1, "predictors": candidate_set,
+                "n_predictors": len(candidate_set), "auc": scored.auc, "delta": scored.auc - current_auc,
+                "used": False, "same_sign": scored.signs_consistent,
+                "max_corr": _max_abs_corr(corr, [col_idx[feat] for feat in candidate_set]),
             })
         feasible = sorted(
             [r for r in entries if self._feasible(r, 1, min_inc, max_dec)],
@@ -242,37 +265,32 @@ class AUCStepwiseLogit(BaseEstimator):
         )
         if feasible:
             feasible[0]["used"] = True
-            return list(feasible[0]["predictors"]), feasible[0]["auc"], entries
-        return list(current_preds), current_auc, entries
+            return StepResult(predictors=list(feasible[0]["predictors"]), auc=feasible[0]["auc"], log_entries=entries)
+        return StepResult(predictors=list(current_preds), auc=current_auc, log_entries=entries)
 
     def _step_backward(
         self,
         current_preds: list[str],
         current_auc: float,
         iteration: int,
-        X_tr: np.ndarray,
-        y_tr: np.ndarray,
-        w_tr: np.ndarray | None,
-        X_va: np.ndarray,
-        y_va: np.ndarray,
-        w_va: np.ndarray | None,
+        data: TrainValData,
         col_idx: dict[str, int],
-        cache: dict[frozenset[str], tuple[float, bool]],
+        cache: dict[frozenset[str], ScoreResult],
         corr: np.ndarray,
         min_inc: float,
         max_dec: float,
-    ) -> tuple[list[str], float, list[dict[str, Any]]]:
+    ) -> StepResult:
         entries: list[dict[str, Any]] = []
         if len(current_preds) <= 1:
-            return list(current_preds), current_auc, entries
+            return StepResult(predictors=list(current_preds), auc=current_auc, log_entries=entries)
         for pred in current_preds:
-            cands = [p for p in current_preds if p != pred]
-            auc, sgn = self._score(cands, X_tr, y_tr, w_tr, X_va, y_va, w_va, col_idx, cache)
+            candidate_set = [p for p in current_preds if p != pred]
+            scored = self._score(candidate_set, data, col_idx, cache)
             entries.append({
-                "iteration": iteration, "addrm": -1, "predictors": cands,
-                "n_predictors": len(cands), "auc": auc, "delta": auc - current_auc,
-                "used": False, "same_sign": sgn,
-                "max_corr": _max_abs_corr(corr, [col_idx[p] for p in cands]),
+                "iteration": iteration, "addrm": -1, "predictors": candidate_set,
+                "n_predictors": len(candidate_set), "auc": scored.auc, "delta": scored.auc - current_auc,
+                "used": False, "same_sign": scored.signs_consistent,
+                "max_corr": _max_abs_corr(corr, [col_idx[feat] for feat in candidate_set]),
             })
         feasible = sorted(
             [r for r in entries if self._feasible(r, -1, min_inc, max_dec)],
@@ -281,8 +299,8 @@ class AUCStepwiseLogit(BaseEstimator):
         )
         if feasible:
             feasible[0]["used"] = True
-            return list(feasible[0]["predictors"]), feasible[0]["auc"], entries
-        return list(current_preds), current_auc, entries
+            return StepResult(predictors=list(feasible[0]["predictors"]), auc=feasible[0]["auc"], log_entries=entries)
+        return StepResult(predictors=list(current_preds), auc=current_auc, log_entries=entries)
 
     def fit(
         self,
@@ -297,24 +315,25 @@ class AUCStepwiseLogit(BaseEstimator):
         initial = list(self.initial_predictors or [])
         candidates = list(self.all_predictors or X.columns)
 
-        X_tr, y_tr, w_tr, X_va, y_va, w_va = self._prepare_data(X, y, X_val, y_val, weights, weights_val)
-        corr = _corr_matrix(X_tr, self.correlation_sample)
+        data = self._prepare_data(X, y, X_val, y_val, weights, weights_val)
+        corr = _corr_matrix(data.X_train, self.correlation_sample)
         max_dec = max(0.0, self.max_decrease)
         min_inc = max(self.min_increase, max_dec + 1e-9)
 
-        cache: dict[frozenset[str], tuple[float, bool]] = {}
+        cache: dict[frozenset[str], ScoreResult] = {}
         current_preds = list(initial)
 
         if current_preds:
-            auc0, sgn0 = self._score(current_preds, X_tr, y_tr, w_tr, X_va, y_va, w_va, col_idx, cache)
+            initial_score = self._score(current_preds, data, col_idx, cache)
             corr0 = _max_abs_corr(corr, [col_idx[feat] for feat in current_preds])
         else:
-            auc0, sgn0, corr0 = 0.5, True, 0.0
+            initial_score = ScoreResult(auc=0.5, signs_consistent=True)
+            corr0 = 0.0
 
         records: list[dict[str, Any]] = [{
             "iteration": 0, "addrm": 0, "predictors": list(current_preds),
-            "n_predictors": len(current_preds), "auc": auc0, "delta": 0.0,
-            "used": True, "same_sign": sgn0, "max_corr": corr0,
+            "n_predictors": len(current_preds), "auc": initial_score.auc, "delta": 0.0,
+            "used": True, "same_sign": initial_score.signs_consistent, "max_corr": corr0,
         }]
 
         for iteration in range(1, self.max_iter + 1):
@@ -324,18 +343,14 @@ class AUCStepwiseLogit(BaseEstimator):
             original_preds = list(current_preds)
 
             if self.selection_method in ("forward", "stepwise"):
-                current_preds, current_auc, fwd = self._step_forward(
-                    candidates, current_preds, current_auc, iteration,
-                    X_tr, y_tr, w_tr, X_va, y_va, w_va, col_idx, cache, corr, min_inc, max_dec,
-                )
-                records.extend(fwd)
+                fwd = self._step_forward(candidates, current_preds, current_auc, iteration, data, col_idx, cache, corr, min_inc, max_dec)
+                current_preds, current_auc = fwd.predictors, fwd.auc
+                records.extend(fwd.log_entries)
 
             if self.selection_method in ("backward", "stepwise"):
-                current_preds, current_auc, bwd = self._step_backward(
-                    current_preds, current_auc, iteration,
-                    X_tr, y_tr, w_tr, X_va, y_va, w_va, col_idx, cache, corr, min_inc, max_dec,
-                )
-                records.extend(bwd)
+                bwd = self._step_backward(current_preds, current_auc, iteration, data, col_idx, cache, corr, min_inc, max_dec)
+                current_preds, current_auc = bwd.predictors, bwd.auc
+                records.extend(bwd.log_entries)
 
             records.append({
                 "iteration": iteration, "addrm": 0, "predictors": list(current_preds),
@@ -348,14 +363,14 @@ class AUCStepwiseLogit(BaseEstimator):
 
         self.predictors_: list[str] = current_preds
         if self.predictors_:
-            idx = [col_idx[p] for p in self.predictors_]
-            self.model_: LogisticRegression | None = _fit_logit(X_tr[:, idx], y_tr, w_tr, self.penalty, self.C)
+            col_indices = [col_idx[feat] for feat in self.predictors_]
+            self.model_: LogisticRegression | None = _fit_logit(data.X_train[:, col_indices], data.y_train, data.weights_train, self.penalty, self.C)
             self.coef_: np.ndarray = self.model_.coef_.ravel()
             self.intercept_: float = float(self.model_.intercept_[0])
         else:
             self.model_ = None
             self.coef_ = np.array([])
-            rate = float(y_tr.mean())
+            rate = float(data.y_train.mean())
             self.intercept_ = float(np.log(rate / (1.0 - rate))) if 0.0 < rate < 1.0 else 0.0
 
         self.progress_: pl.DataFrame = pl.DataFrame({
@@ -372,8 +387,8 @@ class AUCStepwiseLogit(BaseEstimator):
         check_is_fitted(self)
         if not self.predictors_ or self.model_ is None:
             return np.full(len(X), 1.0 / (1.0 + np.exp(-self.intercept_)))
-        idx = [list(X.columns).index(p) for p in self.predictors_]
-        return self.model_.predict_proba(X.to_numpy()[:, idx])[:, 1]
+        col_indices = [list(X.columns).index(feat) for feat in self.predictors_]
+        return self.model_.predict_proba(X.to_numpy()[:, col_indices])[:, 1]
 
     def score(self, X: pl.DataFrame, y: pl.Series, weights: pl.Series | None = None) -> float:
         check_is_fitted(self)

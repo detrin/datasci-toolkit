@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import warnings
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
@@ -9,6 +10,18 @@ from optbinning import OptimalBinning
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.metrics import roc_auc_score
 from sklearn.utils.validation import check_is_fitted
+
+
+@dataclass(frozen=True)
+class EncodedFeature:
+    values: np.ndarray
+    category_map: dict[str, int]
+
+
+@dataclass(frozen=True)
+class GroupingResult:
+    n_bins: int
+    exclude: bool
 
 try:
     import lightgbm as lgb
@@ -63,7 +76,7 @@ def _rsi(scores: np.ndarray, event_rates: np.ndarray, months: np.ndarray, thresh
     return stability_sum / len(np.unique(scores))
 
 
-def _encode_cats(x: np.ndarray, mapping: dict[str, int] | None = None) -> tuple[np.ndarray, dict[str, int]]:
+def _encode_cats(x: np.ndarray, mapping: dict[str, int] | None = None) -> EncodedFeature:
     strs = np.array([str(v) if v is not None else "__null__" for v in x])
     if mapping is None:
         known = [s for s in np.unique(strs) if s != "__null__"]
@@ -72,7 +85,7 @@ def _encode_cats(x: np.ndarray, mapping: dict[str, int] | None = None) -> tuple[
         [float(mapping[s]) if s in mapping else np.nan for s in strs],
         dtype=float,
     )
-    return encoded, mapping
+    return EncodedFeature(values=encoded, category_map=mapping)
 
 
 def _train_lgbm(
@@ -326,23 +339,25 @@ class StabilityGrouping(BaseEstimator, TransformerMixin):
             min_leaf = self._min_leaf(len(y_tr), is_minority)
 
             if is_cat:
-                x_tr_enc, cat_map = _encode_cats(X_train[feat].to_numpy())
-                x_va_enc, _ = _encode_cats(X_val[feat].to_numpy(), cat_map)
+                train_enc = _encode_cats(X_train[feat].to_numpy())
+                val_enc = _encode_cats(X_val[feat].to_numpy(), train_enc.category_map)
+                x_tr_enc = train_enc.values
+                x_va_enc = val_enc.values
                 x_tr_orig = X_train[feat].to_numpy()
             else:
                 x_tr_enc = X_train[feat].cast(pl.Float64).to_numpy()
                 x_va_enc = X_val[feat].cast(pl.Float64).to_numpy()
                 x_tr_orig = x_tr_enc
 
-            n_bins, exclude = self._auto_group(
+            grouping = self._auto_group(
                 x_tr_enc, y_tr, w_tr, x_va_enc, y_va, w_va, t_va,
                 is_cat, is_minority, is_must, min_leaf,
             )
 
-            if exclude:
+            if grouping.exclude:
                 self.excluded_.append(feat)
             else:
-                params = {**_LGBM_PARAMS, "num_leaves": n_bins, "min_data_in_leaf": min_leaf}
+                params = {**_LGBM_PARAMS, "num_leaves": grouping.n_bins, "min_data_in_leaf": min_leaf}
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
                     booster = _train_lgbm(params, x_tr_enc, y_tr, w_tr, x_va_enc, y_va, w_va, is_cat)
@@ -377,7 +392,7 @@ class StabilityGrouping(BaseEstimator, TransformerMixin):
         is_minority: bool,
         is_must: bool,
         min_leaf: int,
-    ) -> tuple[int, bool]:
+    ) -> GroupingResult:
         rsi_values: list[float] = []
         gini_values: list[float] = []
 
@@ -403,11 +418,11 @@ class StabilityGrouping(BaseEstimator, TransformerMixin):
 
         max_rsi = float(rsi_arr.max())
         if (not is_minority) and (not is_must) and max_rsi < 1.0:
-            return -1, True
+            return GroupingResult(n_bins=-1, exclude=True)
 
         gini_arr = np.array(gini_values)
         stable_mask = rsi_arr == max_rsi
         best_gini = float(gini_arr[stable_mask].max())
         best_mask = stable_mask & (gini_arr == best_gini)
         n_bins = int(np.arange(2, 2 + len(rsi_arr))[best_mask].min())
-        return n_bins, False
+        return GroupingResult(n_bins=n_bins, exclude=False)

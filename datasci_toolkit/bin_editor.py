@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
@@ -11,7 +12,15 @@ from datasci_toolkit.grouping import _rsi
 _SMOOTH = 0.5
 
 
-def _bin_stats(y: np.ndarray, w: np.ndarray, assignments: np.ndarray, n_bins: int) -> dict[str, Any]:
+@dataclass(frozen=True)
+class BinStats:
+    counts: np.ndarray
+    event_rates: np.ndarray
+    woe: np.ndarray
+    iv: float
+
+
+def _bin_stats(y: np.ndarray, w: np.ndarray, assignments: np.ndarray, n_bins: int) -> BinStats:
     total_ev = float((y * w).sum())
     total_nev = float(((1.0 - y) * w).sum())
     yw = y * w
@@ -30,7 +39,7 @@ def _bin_stats(y: np.ndarray, w: np.ndarray, assignments: np.ndarray, n_bins: in
     nan_nonevent_dist = (nonevents[n_bins] + _SMOOTH) / (total_nev + _SMOOTH)
     woe_nan = float(np.log(nan_event_dist / nan_nonevent_dist))
 
-    return {"counts": counts, "event_rates": event_rates, "woe": np.append(woe_per_bin, woe_nan), "iv": iv}
+    return BinStats(counts=counts, event_rates=event_rates, woe=np.append(woe_per_bin, woe_nan), iv=iv)
 
 
 def _temporal_stats(
@@ -47,12 +56,12 @@ def _temporal_stats(
 
     for m in months:
         mask = t == m
-        s = _bin_stats(y[mask], w[mask], assignments[mask], n_bins)
-        total = float(s["counts"][:n_bins].sum()) or 1.0
+        stats = _bin_stats(y[mask], w[mask], assignments[mask], n_bins)
+        total = float(stats.counts[:n_bins].sum()) or 1.0
         for i in range(n_bins):
-            er = s["event_rates"][i]
+            er = stats.event_rates[i]
             er_by_bin[i].append(None if np.isnan(er) else round(float(er), 6))
-            ps_by_bin[i].append(round(float(s["counts"][i] / total), 6))
+            ps_by_bin[i].append(round(float(stats.counts[i] / total), 6))
 
     scores_arr: list[float] = []
     rates_arr: list[float] = []
@@ -99,23 +108,23 @@ def _num_labels(splits: list[float]) -> list[str]:
 
 def _num_state(feat: str, splits: list[float], x: np.ndarray, y: np.ndarray, w: np.ndarray) -> dict[str, Any]:
     n_bins = len(splits) + 1
-    s = _bin_stats(y, w, _num_assign(x, splits), n_bins)
+    stats = _bin_stats(y, w, _num_assign(x, splits), n_bins)
     return {
         "feature": feat,
         "dtype": "float",
         "n_bins": n_bins,
         "splits": list(splits),
         "bins": _num_labels(splits),
-        "counts": s["counts"].tolist(),
-        "event_rates": [None if np.isnan(v) else round(float(v), 6) for v in s["event_rates"]],
-        "woe": [round(float(v), 6) for v in s["woe"]],
-        "iv": round(s["iv"], 6),
+        "counts": stats.counts.tolist(),
+        "event_rates": [None if np.isnan(v) else round(float(v), 6) for v in stats.event_rates],
+        "woe": [round(float(v), 6) for v in stats.woe],
+        "iv": round(stats.iv, 6),
     }
 
 
 def _cat_state(feat: str, cat_bins: dict[str, int], x: np.ndarray, y: np.ndarray, w: np.ndarray) -> dict[str, Any]:
     n_groups = max(cat_bins.values()) + 1 if cat_bins else 0
-    s = _bin_stats(y, w, _cat_assign(x, cat_bins), n_groups)
+    stats = _bin_stats(y, w, _cat_assign(x, cat_bins), n_groups)
     groups: dict[int, list[str]] = {}
     for cat, grp in cat_bins.items():
         groups.setdefault(grp, []).append(str(cat))
@@ -125,10 +134,10 @@ def _cat_state(feat: str, cat_bins: dict[str, int], x: np.ndarray, y: np.ndarray
         "n_bins": n_groups,
         "groups": {k: sorted(v) for k, v in groups.items()},
         "bins": dict(cat_bins),
-        "counts": s["counts"].tolist(),
-        "event_rates": [None if np.isnan(v) else round(float(v), 6) for v in s["event_rates"]],
-        "woe": [round(float(v), 6) for v in s["woe"]],
-        "iv": round(s["iv"], 6),
+        "counts": stats.counts.tolist(),
+        "event_rates": [None if np.isnan(v) else round(float(v), 6) for v in stats.event_rates],
+        "woe": [round(float(v), 6) for v in stats.woe],
+        "iv": round(stats.iv, 6),
     }
 
 
@@ -287,7 +296,7 @@ class BinEditor:
         pairs: list[tuple[float, float]] = sorted(
             [
                 (
-                    _bin_stats(self._y, self._w, _num_assign(x, sorted(current + [c])), len(current) + 2)["iv"] - base_iv,
+                    _bin_stats(self._y, self._w, _num_assign(x, sorted(current + [c])), len(current) + 2).iv - base_iv,
                     float(c),
                 )
                 for c in candidates
@@ -313,7 +322,7 @@ class BinEditor:
                             for cat, grp in cat_bins.items()
                         }),
                         n_groups - 1,
-                    )["iv"],
+                    ).iv,
                     (bin_idx, bin_idx + 1),
                 )
                 for bin_idx in range(n_groups - 1)

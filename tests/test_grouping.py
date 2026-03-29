@@ -70,7 +70,8 @@ def lgbm_cat_bst(binary_data: dict[str, np.ndarray]) -> tuple[object, np.ndarray
     cats = np.array(["A", "B", "C"] * (400 // 3) + ["A"])
     y = np.array([1.0 if c == "A" else 0.0 for c in cats])
     w = np.ones(len(cats))
-    enc, mapping = _encode_cats(cats)
+    train_enc = _encode_cats(cats)
+    enc, mapping = train_enc.values, train_enc.category_map
     params = {**_LGBM_PARAMS, "num_leaves": 2}
     bst = _train_lgbm(params, enc, y, w, enc, y, w, True)
     return bst, enc, cats
@@ -139,22 +140,21 @@ def test_rsi_zero_span_returns_one() -> None:
 
 def test_encode_cats_produces_numeric() -> None:
     x = np.array(["A", "B", "A", "C"])
-    encoded, mapping = _encode_cats(x)
-    assert encoded.dtype == float
-    assert set(mapping.keys()) == {"A", "B", "C"}
+    result = _encode_cats(x)
+    assert result.values.dtype == float
+    assert set(result.category_map.keys()) == {"A", "B", "C"}
 
 
 def test_encode_cats_null_becomes_nan() -> None:
     x = np.array(["A", None, "B"])
-    encoded, _ = _encode_cats(x)
-    assert np.isnan(encoded[1])
+    assert np.isnan(_encode_cats(x).values[1])
 
 
 def test_encode_cats_uses_provided_mapping() -> None:
     x = np.array(["A", "B"])
-    _, mapping = _encode_cats(x)
+    mapping = _encode_cats(x).category_map
     x2 = np.array(["B", "A", "Z"])
-    enc2, _ = _encode_cats(x2, mapping)
+    enc2 = _encode_cats(x2, mapping).values
     assert np.isnan(enc2[2])
     assert enc2[0] == mapping["B"]
 
