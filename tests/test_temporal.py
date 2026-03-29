@@ -329,3 +329,65 @@ def test_ratio_column_present():
         reference_date=REFERENCE_DATE, primary="transactions",
     )
     assert "RATIO_SUM_AMOUNT_30d__SUM_AMOUNT_inf" in result.columns
+
+# ── integration ──────────────────────────────────────────────────────────────
+def test_fit_transform_full_pipeline():
+    fe = (
+        TemporalFeatureEngineer()
+        .add_aggregation("amount", ["sum", "mean", "count"], ["30d", "inf"], "transactions")
+        .add_time_since("date", from_="last", unit="days", table="transactions")
+        .add_ratio("SUM_AMOUNT_30d", "SUM_AMOUNT_inf")
+    )
+    result = fe.fit_transform(
+        TABLES_SINGLE, entity_col="user_id", time_col="date",
+        reference_date=REFERENCE_DATE, primary="transactions",
+    )
+    expected_cols = {
+        "user_id",
+        "SUM_AMOUNT_30d", "MEAN_AMOUNT_30d", "COUNT_AMOUNT_30d",
+        "SUM_AMOUNT_inf", "MEAN_AMOUNT_inf", "COUNT_AMOUNT_inf",
+        "TIME_SINCE_LAST_DATE_days",
+        "RATIO_SUM_AMOUNT_30d__SUM_AMOUNT_inf",
+    }
+    assert expected_cols.issubset(set(result.columns))
+    assert result["user_id"].n_unique() == result.shape[0]
+
+def test_transform_after_separate_fit():
+    fe = (
+        TemporalFeatureEngineer()
+        .add_aggregation("amount", ["sum"], ["30d"], "transactions")
+    )
+    fe.fit(
+        TABLES_SINGLE, entity_col="user_id", time_col="date",
+        reference_date=REFERENCE_DATE, primary="transactions",
+    )
+    result = fe.transform(TABLES_SINGLE)
+    assert "SUM_AMOUNT_30d" in result.columns
+
+def test_multi_table_agg_on_secondary_column():
+    fe = (
+        TemporalFeatureEngineer()
+        .add_aggregation("amount", ["sum"], ["inf"], "transactions")
+    )
+    result = fe.fit_transform(
+        TABLES_MULTI, entity_col="user_id", time_col="date",
+        reference_date=REFERENCE_DATE, primary="transactions",
+    )
+    assert "SUM_AMOUNT_inf" in result.columns
+    assert result.filter(pl.col("user_id") == 1)["SUM_AMOUNT_inf"][0] == pytest.approx(600.0)
+
+def test_output_entity_col_present():
+    fe = (
+        TemporalFeatureEngineer()
+        .add_aggregation("amount", ["sum"], ["30d"], "transactions")
+    )
+    result = fe.fit_transform(
+        TABLES_SINGLE, entity_col="user_id", time_col="date",
+        reference_date=REFERENCE_DATE, primary="transactions",
+    )
+    assert "user_id" in result.columns
+
+def test_check_is_fitted_before_transform():
+    fe = TemporalFeatureEngineer().add_aggregation("amount", ["sum"], ["30d"], "transactions")
+    with pytest.raises(Exception):
+        fe.transform(TABLES_SINGLE)
