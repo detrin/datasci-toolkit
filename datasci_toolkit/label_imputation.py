@@ -6,6 +6,8 @@ from sklearn.base import BaseEstimator
 from sklearn.neighbors import NearestNeighbors
 from sklearn.utils.validation import check_is_fitted
 
+ArrayLike = np.ndarray | pl.Series
+
 
 def _dist_weights(distances: np.ndarray, eps: float = 1e-10) -> np.ndarray:
     w = 1.0 / (distances + eps)
@@ -39,8 +41,8 @@ class TargetImputer(BaseEstimator):
 
     def fit(
         self,
-        proba: np.ndarray | pl.Series,
-        weights: np.ndarray | pl.Series | None = None,
+        proba: ArrayLike,
+        weights: ArrayLike | None = None,
     ) -> "TargetImputer":
         probabilities = np.asarray(proba, dtype=float)
         sample_weights = np.asarray(weights, dtype=float) if weights is not None else np.ones(len(probabilities))

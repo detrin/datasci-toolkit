@@ -7,11 +7,13 @@ from scipy.stats import ks_2samp
 from sklearn.base import BaseEstimator
 from sklearn.metrics import roc_auc_score
 
+ArrayLike = np.ndarray | pl.Series
+
 
 def gini(
-    y_true: np.ndarray | pl.Series,
-    y_pred: np.ndarray | pl.Series,
-    sample_weight: np.ndarray | pl.Series | None = None,
+    y_true: ArrayLike,
+    y_pred: ArrayLike,
+    sample_weight: ArrayLike | None = None,
 ) -> float:
     y_true = np.asarray(y_true, dtype=float)
     y_pred = np.asarray(y_pred, dtype=float)
@@ -20,8 +22,8 @@ def gini(
 
 
 def ks(
-    y_true: np.ndarray | pl.Series,
-    y_pred: np.ndarray | pl.Series,
+    y_true: ArrayLike,
+    y_pred: ArrayLike,
 ) -> float:
     y_true = np.asarray(y_true, dtype=float)
     y_pred = np.asarray(y_pred, dtype=float)
@@ -29,8 +31,8 @@ def ks(
 
 
 def lift(
-    y_true: np.ndarray | pl.Series,
-    y_pred: np.ndarray | pl.Series,
+    y_true: ArrayLike,
+    y_pred: ArrayLike,
     perc: float = 10.0,
 ) -> float:
     y_true = np.asarray(y_true, dtype=float)
@@ -40,8 +42,8 @@ def lift(
 
 
 def iv(
-    y_true: np.ndarray | pl.Series,
-    x: np.ndarray | pl.Series,
+    y_true: ArrayLike,
+    x: ArrayLike,
 ) -> float:
     y_true = np.asarray(y_true, dtype=float)
     x = np.asarray(x)
@@ -84,9 +86,9 @@ class BootstrapGini(BaseEstimator):
 
     def fit(
         self,
-        y_true: np.ndarray | pl.Series,
-        y_pred: np.ndarray | pl.Series,
-        sample_weight: np.ndarray | pl.Series | None = None,
+        y_true: ArrayLike,
+        y_pred: ArrayLike,
+        sample_weight: ArrayLike | None = None,
     ) -> "BootstrapGini":
         y_true = np.asarray(y_true, dtype=float)
         y_pred = np.asarray(y_pred, dtype=float)
