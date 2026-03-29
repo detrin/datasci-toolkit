@@ -107,6 +107,8 @@ class TemporalFeatureEngineer(BaseEstimator, TransformerMixin):
             time_col = meta["time_col"]
             reference_date = meta["reference_date"]
             primary = meta["primary"]
+        if None in (entity_col, time_col, reference_date, primary):
+            raise ValueError("entity_col, time_col, reference_date, and primary are required")
         assert entity_col is not None
         assert time_col is not None
         assert reference_date is not None
@@ -191,9 +193,8 @@ class TemporalFeatureEngineer(BaseEstimator, TransformerMixin):
                     f"SELECT * FROM t WHERE {spec.query}"
                 )
             descending = spec.from_ == "last"
-            sorted_df = filtered.sort(self.time_col_, descending=descending)
-            agg = sorted_df.group_by(self.entity_col_).agg(
-                pl.col(spec.variable).first().alias("_ts")
+            agg = filtered.group_by(self.entity_col_).agg(
+                pl.col(spec.variable).sort_by(self.time_col_, descending=descending).first().alias("_ts")
             )
             scale = _UNIT_SCALE[spec.unit]
             col_name = _time_since_col_name(spec.from_, spec.variable, spec.unit)

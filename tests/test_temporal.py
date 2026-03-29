@@ -1,4 +1,3 @@
-import re
 import polars as pl
 from datetime import date
 import pytest
@@ -6,6 +5,7 @@ from datasci_toolkit.temporal import (
     AggSpec,
     TimeSinceSpec,
     RatioSpec,
+    TemporalFeatureEngineer,
     _parse_window_days,
     _agg_col_name,
     _time_since_col_name,
@@ -94,8 +94,6 @@ def test_time_since_col_name_last_days():
 
 def test_time_since_col_name_first_months():
     assert _time_since_col_name("first", "event_date", "months") == "TIME_SINCE_FIRST_EVENT_DATE_months"
-
-from datasci_toolkit.temporal import TemporalFeatureEngineer
 
 # ── _join_tables ─────────────────────────────────────────────────────────────
 def test_join_tables_single():
