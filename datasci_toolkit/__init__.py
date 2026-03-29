@@ -6,6 +6,7 @@ from datasci_toolkit.model_selection import AUCStepwiseLogit
 from datasci_toolkit.variable_clustering import CorrVarClus
 from datasci_toolkit.label_imputation import KNNLabelImputer, TargetImputer
 from datasci_toolkit.stability import ESI, PSI, StabilityMonitor, plot_psi_comparison, psi_hist
+from datasci_toolkit.temporal import AggSpec, RatioSpec, TemporalFeatureEngineer, TimeSinceSpec
 
 __all__ = [
     "PSI",
@@ -13,6 +14,10 @@ __all__ = [
     "StabilityMonitor",
     "plot_psi_comparison",
     "psi_hist",
+    "TemporalFeatureEngineer",
+    "AggSpec",
+    "TimeSinceSpec",
+    "RatioSpec",
     "WOETransformer",
     "StabilityGrouping",
     "AUCStepwiseLogit",
