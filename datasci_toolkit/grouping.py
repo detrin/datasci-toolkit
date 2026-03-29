@@ -19,6 +19,14 @@ class EncodedFeature:
 
 
 @dataclass(frozen=True)
+class FeatureArrays:
+    x_train_encoded: np.ndarray
+    x_val_encoded: np.ndarray
+    x_train_original: np.ndarray
+    is_categorical: bool
+
+
+@dataclass(frozen=True)
 class GroupingResult:
     n_bins: int
     exclude: bool
@@ -145,6 +153,28 @@ def _cat_bin_spec(bst: Any, x_enc: np.ndarray, x_orig: np.ndarray) -> dict[str, 
             bins[str(cat)] = bucket_idx
 
     return {"dtype": "category", "bins": bins}
+
+
+def _select_best_bins(
+    rsi_arr: np.ndarray,
+    gini_arr: np.ndarray,
+    is_minority: bool,
+    is_must: bool,
+) -> GroupingResult:
+    rsi_arr = rsi_arr.copy()
+    for i in range(1, len(rsi_arr)):
+        if rsi_arr[i] == 1.0 and rsi_arr[i - 1] < 1.0:
+            rsi_arr[i] = rsi_arr[i - 1]
+
+    max_rsi = float(rsi_arr.max())
+    if (not is_minority) and (not is_must) and max_rsi < 1.0:
+        return GroupingResult(n_bins=-1, exclude=True)
+
+    stable_mask = rsi_arr == max_rsi
+    best_gini = float(gini_arr[stable_mask].max())
+    best_mask = stable_mask & (gini_arr == best_gini)
+    n_bins = int(np.arange(2, 2 + len(rsi_arr))[best_mask].min())
+    return GroupingResult(n_bins=n_bins, exclude=False)
 
 
 def _monthly_gini(
@@ -310,6 +340,51 @@ class StabilityGrouping(BaseEstimator, TransformerMixin):
             return self.min_leaf_minority
         return max(1, int(np.ceil(self.min_leaf_share * n)))
 
+    def _prepare_feature_data(self, feat: str, X_train: pl.DataFrame, X_val: pl.DataFrame) -> FeatureArrays:
+        if self._is_categorical(X_train[feat]):
+            train_enc = _encode_cats(X_train[feat].to_numpy())
+            val_enc = _encode_cats(X_val[feat].to_numpy(), train_enc.category_map)
+            return FeatureArrays(
+                x_train_encoded=train_enc.values,
+                x_val_encoded=val_enc.values,
+                x_train_original=X_train[feat].to_numpy(),
+                is_categorical=True,
+            )
+        x_train = X_train[feat].cast(pl.Float64).to_numpy()
+        return FeatureArrays(
+            x_train_encoded=x_train,
+            x_val_encoded=X_val[feat].cast(pl.Float64).to_numpy(),
+            x_train_original=x_train,
+            is_categorical=False,
+        )
+
+    def _fit_feature(
+        self,
+        feat: str,
+        arrays: FeatureArrays,
+        y_tr: np.ndarray,
+        w_tr: np.ndarray,
+        y_va: np.ndarray,
+        w_va: np.ndarray,
+        t_va: np.ndarray,
+        is_minority: bool,
+        is_must: bool,
+    ) -> dict[str, Any] | None:
+        min_leaf = self._min_leaf(len(y_tr), is_minority)
+        grouping = self._auto_group(
+            arrays.x_train_encoded, y_tr, w_tr, arrays.x_val_encoded, y_va, w_va, t_va,
+            arrays.is_categorical, is_minority, is_must, min_leaf,
+        )
+        if grouping.exclude:
+            return None
+        params = {**_LGBM_PARAMS, "num_leaves": grouping.n_bins, "min_data_in_leaf": min_leaf}
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            booster = _train_lgbm(params, arrays.x_train_encoded, y_tr, w_tr, arrays.x_val_encoded, y_va, w_va, arrays.is_categorical)
+        if arrays.is_categorical:
+            return _cat_bin_spec(booster, arrays.x_train_encoded, arrays.x_train_original)
+        return _num_bin_spec(booster, arrays.x_train_encoded)
+
     def fit(
         self,
         X_train: pl.DataFrame,
@@ -333,42 +408,15 @@ class StabilityGrouping(BaseEstimator, TransformerMixin):
         self.excluded_: list[str] = []
 
         for feat in X_train.columns:
-            is_cat = self._is_categorical(X_train[feat])
-            is_minority = feat in minorities
-            is_must = feat in must
-            min_leaf = self._min_leaf(len(y_tr), is_minority)
-
-            if is_cat:
-                train_enc = _encode_cats(X_train[feat].to_numpy())
-                val_enc = _encode_cats(X_val[feat].to_numpy(), train_enc.category_map)
-                x_tr_enc = train_enc.values
-                x_va_enc = val_enc.values
-                x_tr_orig = X_train[feat].to_numpy()
-            else:
-                x_tr_enc = X_train[feat].cast(pl.Float64).to_numpy()
-                x_va_enc = X_val[feat].cast(pl.Float64).to_numpy()
-                x_tr_orig = x_tr_enc
-
-            grouping = self._auto_group(
-                x_tr_enc, y_tr, w_tr, x_va_enc, y_va, w_va, t_va,
-                is_cat, is_minority, is_must, min_leaf,
-            )
-
-            if grouping.exclude:
+            arrays = self._prepare_feature_data(feat, X_train, X_val)
+            spec = self._fit_feature(feat, arrays, y_tr, w_tr, y_va, w_va, t_va, feat in minorities, feat in must)
+            if spec is None:
                 self.excluded_.append(feat)
             else:
-                params = {**_LGBM_PARAMS, "num_leaves": grouping.n_bins, "min_data_in_leaf": min_leaf}
-                with warnings.catch_warnings():
-                    warnings.simplefilter("ignore")
-                    booster = _train_lgbm(params, x_tr_enc, y_tr, w_tr, x_va_enc, y_va, w_va, is_cat)
-
-                spec = _cat_bin_spec(booster, x_tr_enc, x_tr_orig) if is_cat else _num_bin_spec(booster, x_tr_enc)
                 bin_specs[feat] = spec
 
         self.bin_specs_: dict[str, dict[str, Any]] = bin_specs
-        self.transformer_: WOETransformer = WOETransformer(bin_specs=bin_specs).fit(
-            X_train, y_train, weights_train
-        )
+        self.transformer_: WOETransformer = WOETransformer(bin_specs=bin_specs).fit(X_train, y_train, weights_train)
         return self
 
     def transform(self, X: pl.DataFrame) -> pl.DataFrame:
@@ -378,6 +426,35 @@ class StabilityGrouping(BaseEstimator, TransformerMixin):
     def ungroupable(self) -> list[str]:
         check_is_fitted(self)
         return self.excluded_
+
+    def _evaluate_bin_counts(
+        self,
+        x_tr: np.ndarray,
+        y_tr: np.ndarray,
+        w_tr: np.ndarray,
+        x_va: np.ndarray,
+        y_va: np.ndarray,
+        w_va: np.ndarray,
+        t_va: np.ndarray,
+        is_cat: bool,
+        min_leaf: int,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        rsi_values: list[float] = []
+        gini_values: list[float] = []
+        for n_leaves in range(2, self.max_bins + 1):
+            params = {**_LGBM_PARAMS, "num_leaves": n_leaves, "min_data_in_leaf": min_leaf}
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                try:
+                    booster = _train_lgbm(params, x_tr, y_tr, w_tr, x_va, y_va, w_va, is_cat)
+                except Exception:
+                    rsi_values.append(0.0)
+                    gini_values.append(0.0)
+                    continue
+            val_leaf_scores = booster.predict(x_va.reshape(-1, 1), num_iteration=1)
+            rsi_values.append(_bins_rsi(val_leaf_scores, y_va, w_va, t_va, self.stability_threshold))
+            gini_values.append(_monthly_gini(val_leaf_scores, y_va, w_va, t_va))
+        return np.array(rsi_values), np.array(gini_values)
 
     def _auto_group(
         self,
@@ -393,36 +470,5 @@ class StabilityGrouping(BaseEstimator, TransformerMixin):
         is_must: bool,
         min_leaf: int,
     ) -> GroupingResult:
-        rsi_values: list[float] = []
-        gini_values: list[float] = []
-
-        for n_leaves in range(2, self.max_bins + 1):
-            params = {**_LGBM_PARAMS, "num_leaves": n_leaves, "min_data_in_leaf": min_leaf}
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                try:
-                    booster = _train_lgbm(params, x_tr, y_tr, w_tr, x_va, y_va, w_va, is_cat)
-                except Exception:
-                    rsi_values.append(0.0)
-                    gini_values.append(0.0)
-                    continue
-
-            val_leaf_scores = booster.predict(x_va.reshape(-1, 1), num_iteration=1)
-            rsi_values.append(_bins_rsi(val_leaf_scores, y_va, w_va, t_va, self.stability_threshold))
-            gini_values.append(_monthly_gini(val_leaf_scores, y_va, w_va, t_va))
-
-        rsi_arr = np.array(rsi_values)
-        for i in range(1, len(rsi_arr)):
-            if rsi_arr[i] == 1.0 and rsi_arr[i - 1] < 1.0:
-                rsi_arr[i] = rsi_arr[i - 1]
-
-        max_rsi = float(rsi_arr.max())
-        if (not is_minority) and (not is_must) and max_rsi < 1.0:
-            return GroupingResult(n_bins=-1, exclude=True)
-
-        gini_arr = np.array(gini_values)
-        stable_mask = rsi_arr == max_rsi
-        best_gini = float(gini_arr[stable_mask].max())
-        best_mask = stable_mask & (gini_arr == best_gini)
-        n_bins = int(np.arange(2, 2 + len(rsi_arr))[best_mask].min())
-        return GroupingResult(n_bins=n_bins, exclude=False)
+        rsi_arr, gini_arr = self._evaluate_bin_counts(x_tr, y_tr, w_tr, x_va, y_va, w_va, t_va, is_cat, min_leaf)
+        return _select_best_bins(rsi_arr, gini_arr, is_minority, is_must)

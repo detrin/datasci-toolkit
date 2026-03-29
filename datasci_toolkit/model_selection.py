@@ -302,26 +302,18 @@ class AUCStepwiseLogit(BaseEstimator):
             return StepResult(predictors=list(feasible[0]["predictors"]), auc=feasible[0]["auc"], log_entries=entries)
         return StepResult(predictors=list(current_preds), auc=current_auc, log_entries=entries)
 
-    def fit(
+    def _run_selection_loop(
         self,
-        X: pl.DataFrame,
-        y: pl.Series,
-        X_val: pl.DataFrame | None = None,
-        y_val: pl.Series | None = None,
-        weights: pl.Series | None = None,
-        weights_val: pl.Series | None = None,
-    ) -> "AUCStepwiseLogit":
-        col_idx = {c: i for i, c in enumerate(X.columns)}
-        initial = list(self.initial_predictors or [])
-        candidates = list(self.all_predictors or X.columns)
-
-        data = self._prepare_data(X, y, X_val, y_val, weights, weights_val)
-        corr = _corr_matrix(data.X_train, self.correlation_sample)
-        max_dec = max(0.0, self.max_decrease)
-        min_inc = max(self.min_increase, max_dec + 1e-9)
-
+        candidates: list[str],
+        initial_preds: list[str],
+        data: TrainValData,
+        col_idx: dict[str, int],
+        corr: np.ndarray,
+        min_inc: float,
+        max_dec: float,
+    ) -> tuple[list[str], list[dict[str, Any]]]:
         cache: dict[frozenset[str], ScoreResult] = {}
-        current_preds = list(initial)
+        current_preds = list(initial_preds)
 
         if current_preds:
             initial_score = self._score(current_preds, data, col_idx, cache)
@@ -361,9 +353,17 @@ class AUCStepwiseLogit(BaseEstimator):
             if current_preds == original_preds:
                 break
 
-        self.predictors_: list[str] = current_preds
-        if self.predictors_:
-            col_indices = [col_idx[feat] for feat in self.predictors_]
+        return current_preds, records
+
+    def _fit_selected_model(
+        self,
+        predictors: list[str],
+        data: TrainValData,
+        col_idx: dict[str, int],
+    ) -> None:
+        self.predictors_: list[str] = predictors
+        if predictors:
+            col_indices = [col_idx[feat] for feat in predictors]
             self.model_: LogisticRegression | None = _fit_logit(data.X_train[:, col_indices], data.y_train, data.weights_train, self.penalty, self.C)
             self.coef_: np.ndarray = self.model_.coef_.ravel()
             self.intercept_: float = float(self.model_.intercept_[0])
@@ -372,6 +372,28 @@ class AUCStepwiseLogit(BaseEstimator):
             self.coef_ = np.array([])
             rate = float(data.y_train.mean())
             self.intercept_ = float(np.log(rate / (1.0 - rate))) if 0.0 < rate < 1.0 else 0.0
+
+    def fit(
+        self,
+        X: pl.DataFrame,
+        y: pl.Series,
+        X_val: pl.DataFrame | None = None,
+        y_val: pl.Series | None = None,
+        weights: pl.Series | None = None,
+        weights_val: pl.Series | None = None,
+    ) -> "AUCStepwiseLogit":
+        col_idx = {c: i for i, c in enumerate(X.columns)}
+        candidates = list(self.all_predictors or X.columns)
+
+        data = self._prepare_data(X, y, X_val, y_val, weights, weights_val)
+        corr = _corr_matrix(data.X_train, self.correlation_sample)
+        max_dec = max(0.0, self.max_decrease)
+        min_inc = max(self.min_increase, max_dec + 1e-9)
+
+        final_preds, records = self._run_selection_loop(
+            candidates, list(self.initial_predictors or []), data, col_idx, corr, min_inc, max_dec
+        )
+        self._fit_selected_model(final_preds, data, col_idx)
 
         self.progress_: pl.DataFrame = pl.DataFrame({
             "iteration": [r["iteration"] for r in records],
