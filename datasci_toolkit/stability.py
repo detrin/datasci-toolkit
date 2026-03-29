@@ -45,7 +45,7 @@ class PSI(BaseEstimator):
     dataset. Fit on the reference, call `score` on any subsequent snapshot.
 
     Args:
-        q: Number of quantile bins for numeric features.
+        n_quantile_bins: Number of quantile bins for numeric features.
         missing_value: Frequency floor applied to empty bins to avoid log(0).
 
     Attributes:
@@ -53,8 +53,8 @@ class PSI(BaseEstimator):
         ref_dist_: Reference frequency distribution as a DataFrame.
     """
 
-    def __init__(self, q: int = 10, missing_value: float = 0.0001):
-        self.q = q
+    def __init__(self, n_quantile_bins: int = 10, missing_value: float = 0.0001):
+        self.n_quantile_bins = n_quantile_bins
         self.missing_value = missing_value
 
     def _bin(self, series: pl.Series) -> pl.Series:
@@ -62,21 +62,21 @@ class PSI(BaseEstimator):
 
     def fit(self, X: object, weights: object = None) -> "PSI":
         series = _to_series(X, "X")
-        w = _to_series(weights, "weights") if weights is not None else pl.Series(np.ones(len(series)))
+        weights_series = _to_series(weights, "weights") if weights is not None else pl.Series(np.ones(len(series)))
         if series.dtype.is_numeric():
-            cuts = np.unique(np.percentile(series.drop_nulls().to_numpy(), np.linspace(0, 100, self.q + 1)))
+            cuts = np.unique(np.percentile(series.drop_nulls().to_numpy(), np.linspace(0, 100, self.n_quantile_bins + 1)))
             self.bin_breaks_ = list(cuts[1:-1])
             series = self._bin(series)
-        self.ref_dist_ = _weighted_dist(series, w, self.missing_value)
+        self.ref_dist_ = _weighted_dist(series, weights_series, self.missing_value)
         return self
 
     def score(self, X: object, weights: object = None) -> float:
         check_is_fitted(self)
         series = _to_series(X, "X")
-        w = _to_series(weights, "weights") if weights is not None else pl.Series(np.ones(len(series)))
+        weights_series = _to_series(weights, "weights") if weights is not None else pl.Series(np.ones(len(series)))
         if hasattr(self, "bin_breaks_"):
             series = self._bin(series)
-        actual_dist = _weighted_dist(series, w, self.missing_value)
+        actual_dist = _weighted_dist(series, weights_series, self.missing_value)
         df = self.ref_dist_.join(actual_dist.rename({"freq": "freq_act"}), on="cat", how="inner")
         return float(((df["freq"] - df["freq_act"]) * (df["freq"] / df["freq_act"]).log()).sum())
 
@@ -162,7 +162,7 @@ class StabilityMonitor(BaseEstimator):
 
     Args:
         features: Column names to monitor.
-        q: Quantile bins for numeric features (passed to `PSI`).
+        n_quantile_bins: Quantile bins for numeric features (passed to `PSI`).
         missing_value: Frequency floor for empty bins (passed to `PSI`).
         col_weight: Optional weight column in the input DataFrame.
 
@@ -170,9 +170,9 @@ class StabilityMonitor(BaseEstimator):
         psis_: Dict mapping feature name to fitted `PSI` instance.
     """
 
-    def __init__(self, features: list, q: int = 10, missing_value: float = 0.0001, col_weight: str | None = None):
+    def __init__(self, features: list, n_quantile_bins: int = 10, missing_value: float = 0.0001, col_weight: str | None = None):
         self.features = features
-        self.q = q
+        self.n_quantile_bins = n_quantile_bins
         self.missing_value = missing_value
         self.col_weight = col_weight
 
@@ -180,25 +180,25 @@ class StabilityMonitor(BaseEstimator):
         return subset[self.col_weight] if self.col_weight else None
 
     def _make_psi(self) -> PSI:
-        return PSI(q=self.q, missing_value=self.missing_value)
+        return PSI(n_quantile_bins=self.n_quantile_bins, missing_value=self.missing_value)
 
-    def fit(self, df: pl.DataFrame, y: object = None) -> "StabilityMonitor":
+    def fit(self, df: pl.DataFrame, target: object = None) -> "StabilityMonitor":
         self.estimators_ = {
-            feat: self._make_psi().fit(df[feat], self._get_weights(df))
-            for feat in self.features
+            feature: self._make_psi().fit(df[feature], self._get_weights(df))
+            for feature in self.features
         }
         return self
 
-    def _score_month(self, df: pl.DataFrame, feat: str, estimator: PSI, month: object, col_month: str) -> dict:
+    def _score_month(self, df: pl.DataFrame, feature: str, estimator: PSI, month: object, col_month: str) -> dict:
         subset = df.filter(pl.col(col_month) == month)
-        return {"feature": feat, "month": month, "psi": estimator.score(subset[feat], self._get_weights(subset))}
+        return {"feature": feature, "month": month, "psi": estimator.score(subset[feature], self._get_weights(subset))}
 
     def score(self, df: pl.DataFrame, col_month: str) -> pl.DataFrame:
         check_is_fitted(self)
         months = sorted(df[col_month].unique().to_list())
         return pl.DataFrame([
-            self._score_month(df, feat, estimator, month, col_month)
-            for feat, estimator in self.estimators_.items()
+            self._score_month(df, feature, estimator, month, col_month)
+            for feature, estimator in self.estimators_.items()
             for month in months
         ])
 
@@ -206,34 +206,34 @@ class StabilityMonitor(BaseEstimator):
         check_is_fitted(self)
         months = sorted(df[col_month].unique().to_list())
         records = []
-        for feat in self.features:
+        for feature in self.features:
             for month_1, month_2 in zip(months, months[1:]):
                 sub1 = df.filter(pl.col(col_month) == month_1)
                 sub2 = df.filter(pl.col(col_month) == month_2)
-                ref_psi = self._make_psi().fit(sub1[feat], self._get_weights(sub1))
-                records.append({"feature": feat, "months": f"{month_1}:{month_2}", "psi": ref_psi.score(sub2[feat], self._get_weights(sub2))})
+                ref_psi = self._make_psi().fit(sub1[feature], self._get_weights(sub1))
+                records.append({"feature": feature, "months": f"{month_1}:{month_2}", "psi": ref_psi.score(sub2[feature], self._get_weights(sub2))})
         return pl.DataFrame(records)
 
     def score_masks(self, df: pl.DataFrame, mask_dict: dict) -> pl.DataFrame:
         check_is_fitted(self)
         records = []
-        for feat in self.features:
+        for feature in self.features:
             for mn1, mn2 in itertools.combinations(mask_dict, 2):
                 sub1 = df.filter(mask_dict[mn1])
                 sub2 = df.filter(mask_dict[mn2])
-                ref_psi = self._make_psi().fit(sub1[feat], self._get_weights(sub1))
-                records.append({"feature": feat, "mask": f"{mn1}:{mn2}", "psi": ref_psi.score(sub2[feat], self._get_weights(sub2))})
+                ref_psi = self._make_psi().fit(sub1[feature], self._get_weights(sub1))
+                records.append({"feature": feature, "mask": f"{mn1}:{mn2}", "psi": ref_psi.score(sub2[feature], self._get_weights(sub2))})
         return pl.DataFrame(records).sort("psi", descending=True)
 
 
 def plot_psi_comparison(months: list, psi_values: list, labels: list, title: str = "PSI", size: tuple = (12, 8), output_folder: str | None = None, show: bool = True) -> None:
-    n = len(psi_values)
+    n_models = len(psi_values)
     bar_positions = np.linspace(0, len(months), len(months))
     threshold_x = np.linspace(0, len(months) + 1, len(months) + 1)
     plt.figure(figsize=size)
     plt.grid(zorder=0)
-    for i, arr in enumerate(psi_values):
-        plt.bar(bar_positions - (1 / n) * i, arr, width=1 / n, label=labels[i], zorder=3)
+    for model_index, arr in enumerate(psi_values):
+        plt.bar(bar_positions - (1 / n_models) * model_index, arr, width=1 / n_models, label=labels[model_index], zorder=3)
     plt.plot(threshold_x, [0.1] * len(threshold_x), "black")
     plt.plot(threshold_x, [0.25] * len(threshold_x), "r")
     plt.title(title, fontsize=18)
@@ -251,7 +251,7 @@ def plot_psi_comparison(months: list, psi_values: list, labels: list, title: str
 
 
 def psi_hist(data: pl.DataFrame, scores: list, months: list, month_col: str, pivot: int = 0, score_names: list | None = None, title: str = "PSI", bins: int = 10, output_folder: str | None = None, show: bool = True) -> None:
-    psi = PSI(q=bins)
+    psi = PSI(n_quantile_bins=bins)
     results = []
     for score_col in scores:
         ref = data.filter((pl.col(month_col) == months[pivot]) & pl.col(score_col).is_not_null())[score_col]

@@ -43,17 +43,17 @@ def lift(
 
 def iv(
     y_true: ArrayLike,
-    x: ArrayLike,
+    feature_values: ArrayLike,
 ) -> float:
     y_true = np.asarray(y_true, dtype=float)
-    x = np.asarray(x)
+    feature_values = np.asarray(feature_values)
     n_events = float((y_true == 1).sum()) + 1.0
     n_nonevents = float((y_true == 0).sum()) + 1.0
     result = 0.0
-    for value in np.unique(x):
-        mask = x == value
-        bin_events = float(((y_true == 1) & mask).sum()) + 1.0
-        bin_nonevents = float(((y_true == 0) & mask).sum()) + 1.0
+    for bin_value in np.unique(feature_values):
+        bin_mask = feature_values == bin_value
+        bin_events = float(((y_true == 1) & bin_mask).sum()) + 1.0
+        bin_nonevents = float(((y_true == 0) & bin_mask).sum()) + 1.0
         woe = np.log((bin_nonevents / n_nonevents) / (bin_events / n_events))
         result += woe * (bin_nonevents / n_nonevents - bin_events / n_events)
     return result
@@ -93,11 +93,11 @@ class BootstrapGini(BaseEstimator):
         y_true = np.asarray(y_true, dtype=float)
         y_pred = np.asarray(y_pred, dtype=float)
         weights = np.asarray(sample_weight, dtype=float) if sample_weight is not None else None
-        rng = np.random.default_rng(self.seed)
+        random_generator = np.random.default_rng(self.seed)
         n = len(y_true)
         scores: list[float] = []
         for _ in range(self.n_iter):
-            idx = rng.integers(0, n, size=n)
+            idx = random_generator.integers(0, n, size=n)
             w = weights[idx] if weights is not None else None
             scores.append(gini(y_true[idx], y_pred[idx], sample_weight=w))
         alpha = (100.0 - self.ci_level) / 2.0

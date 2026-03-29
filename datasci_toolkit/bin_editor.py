@@ -49,11 +49,11 @@ class FeatureState:
     temporal: TemporalStats | None = None
 
 
-def _bin_stats(y: np.ndarray, w: np.ndarray, assignments: np.ndarray, n_bins: int) -> BinStats:
-    total_ev = float((y * w).sum())
-    total_nev = float(((1.0 - y) * w).sum())
-    yw = y * w
-    counts = np.bincount(assignments, weights=w, minlength=n_bins + 1).astype(float)
+def _bin_stats(target: np.ndarray, weights: np.ndarray, assignments: np.ndarray, n_bins: int) -> BinStats:
+    total_ev = float((target * weights).sum())
+    total_nev = float(((1.0 - target) * weights).sum())
+    yw = target * weights
+    counts = np.bincount(assignments, weights=weights, minlength=n_bins + 1).astype(float)
     events = np.bincount(assignments, weights=yw, minlength=n_bins + 1).astype(float)
     nonevents = counts - events
     event_rates = np.where(counts > 0, events / counts, np.nan)
@@ -72,60 +72,60 @@ def _bin_stats(y: np.ndarray, w: np.ndarray, assignments: np.ndarray, n_bins: in
 
 
 def _temporal_stats(
-    y: np.ndarray,
-    w: np.ndarray,
+    target: np.ndarray,
+    weights: np.ndarray,
     assignments: np.ndarray,
     n_bins: int,
-    t: np.ndarray,
+    time_periods: np.ndarray,
     threshold: float,
 ) -> TemporalStats:
-    months = np.sort(np.unique(t))
-    er_by_bin: list[list[float | None]] = [[] for _ in range(n_bins)]
-    ps_by_bin: list[list[float]] = [[] for _ in range(n_bins)]
+    months = np.sort(np.unique(time_periods))
+    event_rate_by_bin: list[list[float | None]] = [[] for _ in range(n_bins)]
+    pop_share_by_bin: list[list[float]] = [[] for _ in range(n_bins)]
 
-    for m in months:
-        mask = t == m
-        stats = _bin_stats(y[mask], w[mask], assignments[mask], n_bins)
+    for month in months:
+        mask = time_periods == month
+        stats = _bin_stats(target[mask], weights[mask], assignments[mask], n_bins)
         total = float(stats.counts[:n_bins].sum()) or 1.0
-        for i in range(n_bins):
-            er = stats.event_rates[i]
-            er_by_bin[i].append(None if np.isnan(er) else round(float(er), 6))
-            ps_by_bin[i].append(round(float(stats.counts[i] / total), 6))
+        for bin_index in range(n_bins):
+            event_rate = stats.event_rates[bin_index]
+            event_rate_by_bin[bin_index].append(None if np.isnan(event_rate) else round(float(event_rate), 6))
+            pop_share_by_bin[bin_index].append(round(float(stats.counts[bin_index] / total), 6))
 
-    scores_arr: list[float] = []
-    rates_arr: list[float] = []
-    months_arr: list[Any] = []
-    for m_idx, m in enumerate(months):
-        for bin_i in range(n_bins):
-            er = er_by_bin[bin_i][m_idx]
-            if er is not None:
-                scores_arr.append(float(bin_i))
-                rates_arr.append(er)
-                months_arr.append(m)
+    scores_array: list[float] = []
+    rates_array: list[float] = []
+    months_array: list[Any] = []
+    for month_index, month in enumerate(months):
+        for bin_index in range(n_bins):
+            event_rate = event_rate_by_bin[bin_index][month_index]
+            if event_rate is not None:
+                scores_array.append(float(bin_index))
+                rates_array.append(event_rate)
+                months_array.append(month)
 
-    rsi = _rsi(np.array(scores_arr), np.array(rates_arr), np.array(months_arr), threshold) if len(scores_arr) > 1 else 1.0
+    rsi = _rsi(np.array(scores_array), np.array(rates_array), np.array(months_array), threshold) if len(scores_array) > 1 else 1.0
 
     return TemporalStats(
         months=months.tolist(),
         rsi=round(rsi, 4),
-        event_rates=er_by_bin,
-        pop_shares=ps_by_bin,
+        event_rates=event_rate_by_bin,
+        pop_shares=pop_share_by_bin,
     )
 
 
-def _num_assign(x: np.ndarray, splits: list[float]) -> np.ndarray:
-    nan_mask = np.isnan(x)
-    a = np.digitize(x, splits)
-    a[nan_mask] = len(splits) + 1
-    return a
+def _num_assign(values: np.ndarray, splits: list[float]) -> np.ndarray:
+    missing_mask = np.isnan(values)
+    assignments = np.digitize(values, splits)
+    assignments[missing_mask] = len(splits) + 1
+    return assignments
 
 
-def _cat_assign(x: np.ndarray, cat_bins: dict[str, int]) -> np.ndarray:
-    n = max(cat_bins.values()) + 1 if cat_bins else 0
-    a = np.full(len(x), n, dtype=np.intp)
-    for cat, grp in cat_bins.items():
-        a[x == cat] = grp
-    return a
+def _cat_assign(values: np.ndarray, category_bins: dict[str, int]) -> np.ndarray:
+    n_groups = max(category_bins.values()) + 1 if category_bins else 0
+    assignments = np.full(len(values), n_groups, dtype=np.intp)
+    for category, group in category_bins.items():
+        assignments[values == category] = group
+    return assignments
 
 
 def _num_labels(splits: list[float]) -> list[str]:
@@ -135,9 +135,9 @@ def _num_labels(splits: list[float]) -> list[str]:
     return [f"-inf to {split_strs[0]}"] + [f"{split_strs[i]} to {split_strs[i+1]}" for i in range(len(split_strs) - 1)] + [f"{split_strs[-1]} to inf", "NaN"]
 
 
-def _num_state(feat: str, splits: list[float], x: np.ndarray, y: np.ndarray, w: np.ndarray) -> FeatureState:
+def _num_state(feat: str, splits: list[float], values: np.ndarray, target: np.ndarray, weights: np.ndarray) -> FeatureState:
     n_bins = len(splits) + 1
-    stats = _bin_stats(y, w, _num_assign(x, splits), n_bins)
+    stats = _bin_stats(target, weights, _num_assign(values, splits), n_bins)
     return FeatureState(
         feature=feat,
         dtype=FeatureDtype.NUMERIC,
@@ -151,18 +151,18 @@ def _num_state(feat: str, splits: list[float], x: np.ndarray, y: np.ndarray, w: 
     )
 
 
-def _cat_state(feat: str, cat_bins: dict[str, int], x: np.ndarray, y: np.ndarray, w: np.ndarray) -> FeatureState:
-    n_groups = max(cat_bins.values()) + 1 if cat_bins else 0
-    stats = _bin_stats(y, w, _cat_assign(x, cat_bins), n_groups)
+def _cat_state(feat: str, category_bins: dict[str, int], values: np.ndarray, target: np.ndarray, weights: np.ndarray) -> FeatureState:
+    n_groups = max(category_bins.values()) + 1 if category_bins else 0
+    stats = _bin_stats(target, weights, _cat_assign(values, category_bins), n_groups)
     groups: dict[int, list[str]] = {}
-    for cat, grp in cat_bins.items():
+    for cat, grp in category_bins.items():
         groups.setdefault(grp, []).append(str(cat))
     return FeatureState(
         feature=feat,
         dtype=FeatureDtype.CATEGORICAL,
         n_bins=n_groups,
         groups={k: sorted(v) for k, v in groups.items()},
-        bins=dict(cat_bins),
+        bins=dict(category_bins),
         counts=stats.counts.tolist(),
         event_rates=[None if np.isnan(v) else round(float(v), 6) for v in stats.event_rates],
         woe=[round(float(v), 6) for v in stats.woe],
@@ -180,9 +180,9 @@ class BinEditor:
     Args:
         bin_specs: Initial bin specifications — a dict produced by
             `StabilityGrouping.bin_specs_` or built manually.
-        X: Feature DataFrame matching the features in ``bin_specs``.
-        y: Binary target series (0/1 or float).
-        t: Optional time series for temporal stability metrics.
+        features: Feature DataFrame matching the features in ``bin_specs``.
+        target: Binary target series (0/1 or float).
+        time_periods: Optional time series for temporal stability metrics.
         weights: Optional sample weight series.
         stability_threshold: RSI threshold used to flag unstable bins in the
             state dict (does not block edits).
@@ -196,15 +196,15 @@ class BinEditor:
     def __init__(
         self,
         bin_specs: dict[str, dict[str, Any]],
-        X: pl.DataFrame,
-        y: pl.Series,
-        t: pl.Series | None = None,
+        features: pl.DataFrame,
+        target: pl.Series,
+        time_periods: pl.Series | None = None,
         weights: pl.Series | None = None,
         stability_threshold: float = 0.1,
     ) -> None:
-        self._y = y.cast(pl.Float64).to_numpy()
-        self._w = weights.cast(pl.Float64).to_numpy() if weights is not None else np.ones(len(self._y))
-        self._t: np.ndarray | None = t.to_numpy() if t is not None else None
+        self._targets = target.cast(pl.Float64).to_numpy()
+        self._weights = weights.cast(pl.Float64).to_numpy() if weights is not None else np.ones(len(self._targets))
+        self._time: np.ndarray | None = time_periods.to_numpy() if time_periods is not None else None
         self._threshold = stability_threshold
         self._x: dict[str, np.ndarray] = {}
         self._splits: dict[str, list[float]] = {}
@@ -213,15 +213,15 @@ class BinEditor:
         self._orig: dict[str, dict[str, Any]] = {}
 
         for feat, spec in bin_specs.items():
-            if feat not in X.columns:
+            if feat not in features.columns:
                 continue
             self._orig[feat] = spec
             self._history[feat] = []
             if spec["dtype"] == FeatureDtype.NUMERIC:
-                self._x[feat] = X[feat].cast(pl.Float64).to_numpy()
+                self._x[feat] = features[feat].cast(pl.Float64).to_numpy()
                 self._splits[feat] = [float(s) for s in spec["bins"][1:-1] if np.isfinite(s)]
             else:
-                self._x[feat] = X[feat].cast(pl.Utf8).to_numpy().astype(str)
+                self._x[feat] = features[feat].cast(pl.Utf8).to_numpy().astype(str)
                 self._cat_bins[feat] = {str(k): int(v) for k, v in spec["bins"].items()}
 
     def features(self) -> list[str]:
@@ -229,8 +229,8 @@ class BinEditor:
 
     def _base_state(self, feat: str) -> FeatureState:
         if feat in self._splits:
-            return _num_state(feat, self._splits[feat], self._x[feat], self._y, self._w)
-        return _cat_state(feat, self._cat_bins[feat], self._x[feat], self._y, self._w)
+            return _num_state(feat, self._splits[feat], self._x[feat], self._targets, self._weights)
+        return _cat_state(feat, self._cat_bins[feat], self._x[feat], self._targets, self._weights)
 
     def _assignments(self, feat: str) -> np.ndarray:
         if feat in self._splits:
@@ -239,9 +239,9 @@ class BinEditor:
 
     def state(self, feat: str) -> FeatureState:
         s = self._base_state(feat)
-        if self._t is not None:
+        if self._time is not None:
             s.temporal = _temporal_stats(
-                self._y, self._w, self._assignments(feat), s.n_bins, self._t, self._threshold
+                self._targets, self._weights, self._assignments(feat), s.n_bins, self._time, self._threshold
             )
         return s
 
@@ -309,46 +309,46 @@ class BinEditor:
     def history(self, feat: str) -> list[dict[str, Any]]:
         return [{"type": k, "value": v} for k, v in self._history[feat]]
 
-    def _suggest_num(self, feat: str, n: int) -> list[float]:
-        x = self._x[feat]
-        x_valid = x[~np.isnan(x)]
+    def _suggest_num(self, feat: str, n_suggestions: int) -> list[float]:
+        values = self._x[feat]
+        x_valid = values[~np.isnan(values)]
         if len(x_valid) == 0:
             return []
         current = self._splits[feat]
         span = float(x_valid.max() - x_valid.min())
         min_gap = span * 0.01
         candidates = [
-            float(c) for c in np.unique(np.percentile(x_valid, np.linspace(5, 95, 40)))
-            if all(abs(c - s) > min_gap for s in current)
+            float(candidate) for candidate in np.unique(np.percentile(x_valid, np.linspace(5, 95, 40)))
+            if all(abs(candidate - split) > min_gap for split in current)
         ]
-        base_iv = self._base_state(feat).iv
+        base_information_value = self._base_state(feat).iv
         pairs: list[tuple[float, float]] = sorted(
             [
                 (
-                    _bin_stats(self._y, self._w, _num_assign(x, sorted(current + [c])), len(current) + 2).iv - base_iv,
-                    float(c),
+                    _bin_stats(self._targets, self._weights, _num_assign(values, sorted(current + [candidate])), len(current) + 2).iv - base_information_value,
+                    float(candidate),
                 )
-                for c in candidates
+                for candidate in candidates
             ],
             reverse=True,
         )
-        return [v for _, v in pairs[:n]]
+        return [v for _, v in pairs[:n_suggestions]]
 
-    def _suggest_cat(self, feat: str, n: int) -> list[tuple[int, int]]:
-        cat_bins = self._cat_bins[feat]
-        n_groups = max(cat_bins.values()) + 1 if cat_bins else 0
+    def _suggest_cat(self, feat: str, n_suggestions: int) -> list[tuple[int, int]]:
+        category_bins = self._cat_bins[feat]
+        n_groups = max(category_bins.values()) + 1 if category_bins else 0
         if n_groups <= 1:
             return []
-        x = self._x[feat]
-        base_iv = self._base_state(feat).iv
+        values = self._x[feat]
+        base_information_value = self._base_state(feat).iv
         pairs: list[tuple[float, tuple[int, int]]] = sorted(
             [
                 (
-                    base_iv - _bin_stats(
-                        self._y, self._w,
-                        _cat_assign(x, {
-                            cat: (bin_idx if grp == bin_idx + 1 else (grp - 1 if grp > bin_idx + 1 else grp))
-                            for cat, grp in cat_bins.items()
+                    base_information_value - _bin_stats(
+                        self._targets, self._weights,
+                        _cat_assign(values, {
+                            category: (bin_idx if group == bin_idx + 1 else (group - 1 if group > bin_idx + 1 else group))
+                            for category, group in category_bins.items()
                         }),
                         n_groups - 1,
                     ).iv,
@@ -357,7 +357,7 @@ class BinEditor:
                 for bin_idx in range(n_groups - 1)
             ]
         )
-        return [pair for _, pair in pairs[:n]]
+        return [pair for _, pair in pairs[:n_suggestions]]
 
     def suggest_splits(self, feat: str, n: int = 5) -> list:  # type: ignore[type-arg]
         if feat in self._splits:

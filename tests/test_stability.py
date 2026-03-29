@@ -132,7 +132,7 @@ def test_psi_categorical_different_positive(cat_series: pl.Series) -> None:
 
 
 def test_psi_stores_bin_breaks_for_numeric(normal_series: pl.Series) -> None:
-    psi = PSI(q=5).fit(normal_series)
+    psi = PSI(n_quantile_bins=5).fit(normal_series)
     assert hasattr(psi, "bin_breaks_")
     assert len(psi.bin_breaks_) == 4
 

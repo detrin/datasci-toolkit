@@ -219,10 +219,10 @@ if _AVAILABLE:
         def _merge_labels(self, state: FeatureState) -> list[str]:
             if state.dtype == FeatureDtype.NUMERIC:
                 return [f"{s:.4g}" for s in (state.splits or [])]
-            n_g: int = state.n_bins
+            n_groups: int = state.n_bins
             groups: dict[int, list[str]] = state.groups or {}
             labels: list[str] = []
-            for i in range(n_g - 1):
+            for i in range(n_groups - 1):
                 cats_a = groups.get(i, [])
                 cats_b = groups.get(i + 1, [])
                 if len(cats_a) <= 3 and len(cats_b) <= 3:
@@ -254,19 +254,19 @@ if _AVAILABLE:
             fig = Figure(figsize=(max(6, n * 1.4), 3.5))
             FigureCanvasAgg(fig)
             ax1 = fig.add_subplot(111)
-            x_pos = np.arange(n)
-            ax1.bar(x_pos, pop, color=[_PALETTE[i % len(_PALETTE)] for i in range(n)], alpha=0.65, width=0.6)
+            x_positions = np.arange(n)
+            ax1.bar(x_positions, pop, color=[_PALETTE[i % len(_PALETTE)] for i in range(n)], alpha=0.65, width=0.6)
             ax1.set_ylabel("Population share", fontsize=9)
-            ax1.set_xticks(x_pos)
+            ax1.set_xticks(x_positions)
             ax1.set_xticklabels(labels, rotation=35, ha="right", fontsize=8)
             ax1.set_ylim(0, float(max(pop)) * 1.35)
             ax2 = ax1.twinx()
-            ax2.plot(x_pos, er, "o-", color="crimson", linewidth=2, markersize=5, zorder=5)
+            ax2.plot(x_positions, er, "o-", color="crimson", linewidth=2, markersize=5, zorder=5)
             ax2.set_ylabel("Event rate", color="crimson", fontsize=9)
             ax2.tick_params(axis="y", labelcolor="crimson")
             ax2.set_ylim(0, max(float(er.max()) * 1.4, 0.01))
-            for xi, w_val, p_val in zip(x_pos, woe, pop):
-                ax1.text(float(xi), float(p_val) + float(max(pop)) * 0.02, f"{w_val:.2f}", ha="center", va="bottom", fontsize=7, color="#1a1a6e", fontweight="bold")
+            for x_pos, woe_value, pop_value in zip(x_positions, woe, pop):
+                ax1.text(float(x_pos), float(pop_value) + float(max(pop)) * 0.02, f"{woe_value:.2f}", ha="center", va="bottom", fontsize=7, color="#1a1a6e", fontweight="bold")
             ax1.set_title(f"{self.current_feat}   IV = {state.iv:.4f}   n_bins = {n}", fontsize=10)
             fig.tight_layout()
             return _fig_to_b64(fig)

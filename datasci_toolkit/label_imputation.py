@@ -9,9 +9,9 @@ from sklearn.utils.validation import check_is_fitted
 ArrayLike = np.ndarray | pl.Series
 
 
-def _dist_weights(distances: np.ndarray, eps: float = 1e-10) -> np.ndarray:
-    w = 1.0 / (distances + eps)
-    return w / w.sum(axis=1, keepdims=True)
+def _dist_weights(distances: np.ndarray, epsilon: float = 1e-10) -> np.ndarray:
+    proximity_weights = 1.0 / (distances + epsilon)
+    return proximity_weights / proximity_weights.sum(axis=1, keepdims=True)
 
 
 class TargetImputer(BaseEstimator):
@@ -113,8 +113,8 @@ class KNNLabelImputer(BaseEstimator):
             if weights_labeled is not None
             else np.ones(len(self.y_labeled_))
         )
-        k = min(self.n_neighbors, len(self.y_labeled_))
-        self.nn_: NearestNeighbors = NearestNeighbors(n_neighbors=k, metric=self.metric).fit(X_np)
+        n_neighbors_fit = min(self.n_neighbors, len(self.y_labeled_))
+        self.nn_: NearestNeighbors = NearestNeighbors(n_neighbors=n_neighbors_fit, metric=self.metric).fit(X_np)
         return self
 
     def predict_proba(self, X_unlabeled: pl.DataFrame) -> np.ndarray:
@@ -124,8 +124,8 @@ class KNNLabelImputer(BaseEstimator):
         if distances.ndim == 1:
             distances = distances[:, np.newaxis]
             indices = indices[:, np.newaxis]
-        w_dist = _dist_weights(distances)
-        combined = w_dist * self.w_labeled_[indices]
+        distance_weights = _dist_weights(distances)
+        combined = distance_weights * self.w_labeled_[indices]
         denom = combined.sum(axis=1)
         denom = np.where(denom == 0, 1.0, denom)
         return (combined * self.y_labeled_[indices]).sum(axis=1) / denom

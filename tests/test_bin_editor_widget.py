@@ -28,7 +28,7 @@ def _make_editor(temporal: bool = False) -> BinEditor:
     X = pl.DataFrame({"num": _X_NP.tolist(), "cat": _CATS.tolist()})
     y = pl.Series(_Y_NP.tolist())
     t = pl.Series(_T_NP.tolist()) if temporal else None
-    return BinEditor(_BIN_SPECS, X, y, t=t)
+    return BinEditor(_BIN_SPECS, X, y, time_periods=t)
 
 
 def _send(widget: BinEditorWidget, content: dict) -> None:

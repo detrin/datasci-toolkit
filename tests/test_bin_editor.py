@@ -34,7 +34,7 @@ def editor_temporal() -> BinEditor:
     X = pl.DataFrame({"num": _X_NP.tolist(), "cat": _CATS.tolist()})
     y = pl.Series(_Y_NP.tolist())
     t = pl.Series(_T_NP.tolist())
-    return BinEditor(_BIN_SPECS, X, y, t=t)
+    return BinEditor(_BIN_SPECS, X, y, time_periods=t)
 
 
 # --- _bin_stats ---

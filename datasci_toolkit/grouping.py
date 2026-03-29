@@ -61,10 +61,10 @@ def _rsi(scores: np.ndarray, event_rates: np.ndarray, months: np.ndarray, thresh
 
     bin_ranks = np.zeros(len(scores), dtype=int)
     for month in np.unique(months):
-        month_idx = np.where(months == month)[0]
-        order = np.argsort(-event_rates[month_idx])
-        for rank_pos, pos in enumerate(order):
-            bin_ranks[month_idx[pos]] = rank_pos
+        month_indices = np.where(months == month)[0]
+        sort_order = np.argsort(-event_rates[month_indices])
+        for rank_position, original_index in enumerate(sort_order):
+            bin_ranks[month_indices[original_index]] = rank_position
 
     stability_sum = 0.0
     for bin_score in np.unique(scores):
@@ -84,13 +84,13 @@ def _rsi(scores: np.ndarray, event_rates: np.ndarray, months: np.ndarray, thresh
     return stability_sum / len(np.unique(scores))
 
 
-def _encode_cats(x: np.ndarray, mapping: dict[str, int] | None = None) -> EncodedFeature:
-    strs = np.array([str(v) if v is not None else "__null__" for v in x])
+def _encode_cats(values: np.ndarray, mapping: dict[str, int] | None = None) -> EncodedFeature:
+    string_values = np.array([str(v) if v is not None else "__null__" for v in values])
     if mapping is None:
-        known = [s for s in np.unique(strs) if s != "__null__"]
-        mapping = {c: i for i, c in enumerate(known)}
+        known_categories = [sv for sv in np.unique(string_values) if sv != "__null__"]
+        mapping = {category: index for index, category in enumerate(known_categories)}
     encoded = np.array(
-        [float(mapping[s]) if s in mapping else np.nan for s in strs],
+        [float(mapping[sv]) if sv in mapping else np.nan for sv in string_values],
         dtype=float,
     )
     return EncodedFeature(values=encoded, category_map=mapping)
@@ -98,25 +98,25 @@ def _encode_cats(x: np.ndarray, mapping: dict[str, int] | None = None) -> Encode
 
 def _train_lgbm(
     params: dict[str, Any],
-    x_tr: np.ndarray,
-    y_tr: np.ndarray,
-    w_tr: np.ndarray,
-    x_va: np.ndarray,
-    y_va: np.ndarray,
-    w_va: np.ndarray,
+    x_train: np.ndarray,
+    y_train: np.ndarray,
+    weights_train: np.ndarray,
+    x_val: np.ndarray,
+    y_val: np.ndarray,
+    weights_val: np.ndarray,
     categorical: bool,
 ) -> Any:
     if not _LGB_AVAILABLE:
         raise ImportError("lightgbm is required for StabilityGrouping")
-    cat_feature = [0] if categorical else []
+    categorical_features = [0] if categorical else []
     train_ds = lgb.Dataset(
-        x_tr.reshape(-1, 1),
-        label=y_tr,
-        weight=w_tr,
-        categorical_feature=cat_feature,
+        x_train.reshape(-1, 1),
+        label=y_train,
+        weight=weights_train,
+        categorical_feature=categorical_features,
         free_raw_data=False,
     )
-    valid_ds = lgb.Dataset(x_va.reshape(-1, 1), label=y_va, weight=w_va, reference=train_ds)
+    valid_ds = lgb.Dataset(x_val.reshape(-1, 1), label=y_val, weight=weights_val, reference=train_ds)
     return lgb.train(
         params,
         train_ds,
@@ -125,31 +125,31 @@ def _train_lgbm(
     )
 
 
-def _num_bin_spec(bst: Any, x: np.ndarray) -> dict[str, Any]:
-    observed_mask = ~np.isnan(x)
-    x_observed = x[observed_mask]
-    leaf_scores = bst.predict(x_observed.reshape(-1, 1), num_iteration=1)
+def _num_bin_spec(booster: Any, feature_values: np.ndarray) -> dict[str, Any]:
+    valid_mask = ~np.isnan(feature_values)
+    observed_values = feature_values[valid_mask]
+    leaf_predictions = booster.predict(observed_values.reshape(-1, 1), num_iteration=1)
 
-    buckets = sorted(
-        [{"min": float(x_observed[leaf_scores == s].min()), "max": float(x_observed[leaf_scores == s].max())} for s in np.unique(leaf_scores)],
+    score_buckets = sorted(
+        [{"min": float(observed_values[leaf_predictions == s].min()), "max": float(observed_values[leaf_predictions == s].max())} for s in np.unique(leaf_predictions)],
         key=lambda b: b["max"],
     )
     bins: list[float] = (
         [-np.inf]
-        + [(bucket["max"] + next_bucket["min"]) / 2.0 for bucket, next_bucket in zip(buckets[:-1], buckets[1:])]
+        + [(bucket["max"] + next_bucket["min"]) / 2.0 for bucket, next_bucket in zip(score_buckets[:-1], score_buckets[1:])]
         + [np.inf]
     )
     return {"dtype": "float", "bins": bins}
 
 
-def _cat_bin_spec(bst: Any, x_enc: np.ndarray, x_orig: np.ndarray) -> dict[str, Any]:
-    observed_mask = ~np.isnan(x_enc)
-    leaf_scores = bst.predict(x_enc[observed_mask].reshape(-1, 1), num_iteration=1)
-    x_observed = x_orig[observed_mask]
+def _cat_bin_spec(booster: Any, encoded_values: np.ndarray, original_values: np.ndarray) -> dict[str, Any]:
+    valid_mask = ~np.isnan(encoded_values)
+    leaf_predictions = booster.predict(encoded_values[valid_mask].reshape(-1, 1), num_iteration=1)
+    observed_values = original_values[valid_mask]
 
     bins: dict[str, int] = {}
-    for bucket_idx, score in enumerate(sorted(np.unique(leaf_scores))):
-        for cat in np.unique(x_observed[leaf_scores == score]):
+    for bucket_idx, score in enumerate(sorted(np.unique(leaf_predictions))):
+        for cat in np.unique(observed_values[leaf_predictions == score]):
             bins[str(cat)] = bucket_idx
 
     return {"dtype": "category", "bins": bins}
@@ -178,48 +178,48 @@ def _select_best_bins(
 
 
 def _monthly_gini(
-    p_va: np.ndarray,
-    y_va: np.ndarray,
-    w_va: np.ndarray,
-    t_va: np.ndarray,
+    predictions_val: np.ndarray,
+    y_val: np.ndarray,
+    weights_val: np.ndarray,
+    time_val: np.ndarray,
 ) -> float:
     scores: list[float] = []
-    for m in np.unique(t_va):
-        mask = t_va == m
-        if len(np.unique(y_va[mask])) < 2:
+    for month in np.unique(time_val):
+        mask = time_val == month
+        if len(np.unique(y_val[mask])) < 2:
             continue
         try:
-            scores.append(float(roc_auc_score(y_va[mask], p_va[mask], sample_weight=w_va[mask])))
+            scores.append(float(roc_auc_score(y_val[mask], predictions_val[mask], sample_weight=weights_val[mask])))
         except Exception:
             pass
     return float(np.mean(scores)) if scores else 0.0
 
 
 def _bins_rsi(
-    p_va: np.ndarray,
-    y_va: np.ndarray,
-    w_va: np.ndarray,
-    t_va: np.ndarray,
+    predictions_val: np.ndarray,
+    y_val: np.ndarray,
+    weights_val: np.ndarray,
+    time_val: np.ndarray,
     threshold: float,
 ) -> float:
-    bin_scores: list[float] = []
-    bin_event_rates: list[float] = []
-    obs_months: list[Any] = []
-    for month in np.unique(t_va):
-        month_mask = t_va == month
-        month_preds, month_targets, month_weights = p_va[month_mask], y_va[month_mask], w_va[month_mask]
-        for score in np.unique(month_preds):
-            score_mask = month_preds == score
+    all_bin_scores: list[float] = []
+    all_event_rates: list[float] = []
+    observation_months: list[Any] = []
+    for month in np.unique(time_val):
+        month_mask = time_val == month
+        month_predictions, month_targets, month_weights = predictions_val[month_mask], y_val[month_mask], weights_val[month_mask]
+        for score in np.unique(month_predictions):
+            score_mask = month_predictions == score
             total_weight = float(month_weights[score_mask].sum())
             if total_weight == 0.0:
                 continue
-            bin_scores.append(float(score))
-            bin_event_rates.append(float((month_targets[score_mask] * month_weights[score_mask]).sum() / total_weight))
-            obs_months.append(month)
+            all_bin_scores.append(float(score))
+            all_event_rates.append(float((month_targets[score_mask] * month_weights[score_mask]).sum() / total_weight))
+            observation_months.append(month)
     return _rsi(
-        np.array(bin_scores),
-        np.array(bin_event_rates),
-        np.array(obs_months),
+        np.array(all_bin_scores),
+        np.array(all_event_rates),
+        np.array(observation_months),
         threshold,
     )
 
@@ -250,11 +250,11 @@ class WOETransformer(BaseEstimator, TransformerMixin):
         y_np = y.cast(pl.Float64).to_numpy()
         w_np = weights.cast(pl.Float64).to_numpy() if weights is not None else None
         self.binners_: dict[str, OptimalBinning] = {}
-        for feat, spec in self.bin_specs.items():
+        for feat, bin_spec in self.bin_specs.items():
             if feat not in X.columns:
                 continue
-            if spec["dtype"] == "float":
-                splits = [s for s in spec["bins"][1:-1] if np.isfinite(s)]
+            if bin_spec["dtype"] == "float":
+                splits = [s for s in bin_spec["bins"][1:-1] if np.isfinite(s)]
                 x_np = X[feat].cast(pl.Float64).to_numpy()
                 binner = OptimalBinning(
                     name=feat,
@@ -262,9 +262,9 @@ class WOETransformer(BaseEstimator, TransformerMixin):
                     user_splits=splits if splits else None,
                 )
             else:
-                cat_bins: dict[str, int] = spec["bins"]
+                category_bins: dict[str, int] = bin_spec["bins"]
                 groups: dict[int, list[str]] = {}
-                for cat, idx in cat_bins.items():
+                for cat, idx in category_bins.items():
                     groups.setdefault(idx, []).append(cat)
                 user_splits = [groups[i] for i in sorted(groups)]
                 x_np = X[feat].cast(pl.Utf8).to_numpy().astype(str)
@@ -281,17 +281,17 @@ class WOETransformer(BaseEstimator, TransformerMixin):
     def transform(self, X: pl.DataFrame) -> pl.DataFrame:
         check_is_fitted(self)
         assert self.bin_specs is not None
-        cols: dict[str, list[float]] = {}
+        result_cols: dict[str, list[float]] = {}
         for feat, binner in self.binners_.items():
             if feat not in X.columns:
                 continue
-            spec = self.bin_specs[feat]
-            if spec["dtype"] == "float":
+            bin_spec = self.bin_specs[feat]
+            if bin_spec["dtype"] == "float":
                 x_np = X[feat].cast(pl.Float64).to_numpy()
             else:
                 x_np = X[feat].cast(pl.Utf8).to_numpy().astype(str)
-            cols[feat] = binner.transform(x_np, metric="woe").tolist()
-        return pl.DataFrame(cols)
+            result_cols[feat] = binner.transform(x_np, metric="woe").tolist()
+        return pl.DataFrame(result_cols)
 
 
 class StabilityGrouping(BaseEstimator, TransformerMixin):
@@ -362,25 +362,25 @@ class StabilityGrouping(BaseEstimator, TransformerMixin):
         self,
         feat: str,
         arrays: FeatureArrays,
-        y_tr: np.ndarray,
-        w_tr: np.ndarray,
-        y_va: np.ndarray,
-        w_va: np.ndarray,
-        t_va: np.ndarray,
+        y_train: np.ndarray,
+        weights_train: np.ndarray,
+        y_val: np.ndarray,
+        weights_val: np.ndarray,
+        time_val: np.ndarray,
         is_minority: bool,
         is_must: bool,
     ) -> dict[str, Any] | None:
-        min_leaf = self._min_leaf(len(y_tr), is_minority)
-        grouping = self._auto_group(
-            arrays.x_train_encoded, y_tr, w_tr, arrays.x_val_encoded, y_va, w_va, t_va,
+        min_leaf = self._min_leaf(len(y_train), is_minority)
+        grouping_result = self._auto_group(
+            arrays.x_train_encoded, y_train, weights_train, arrays.x_val_encoded, y_val, weights_val, time_val,
             arrays.is_categorical, is_minority, is_must, min_leaf,
         )
-        if grouping.exclude:
+        if grouping_result.exclude:
             return None
-        params = {**_LGBM_PARAMS, "num_leaves": grouping.n_bins, "min_data_in_leaf": min_leaf}
+        model_params = {**_LGBM_PARAMS, "num_leaves": grouping_result.n_bins, "min_data_in_leaf": min_leaf}
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            booster = _train_lgbm(params, arrays.x_train_encoded, y_tr, w_tr, arrays.x_val_encoded, y_va, w_va, arrays.is_categorical)
+            booster = _train_lgbm(model_params, arrays.x_train_encoded, y_train, weights_train, arrays.x_val_encoded, y_val, weights_val, arrays.is_categorical)
         if arrays.is_categorical:
             return _cat_bin_spec(booster, arrays.x_train_encoded, arrays.x_train_original)
         return _num_bin_spec(booster, arrays.x_train_encoded)
@@ -398,18 +398,18 @@ class StabilityGrouping(BaseEstimator, TransformerMixin):
     ) -> "StabilityGrouping":
         minorities = set(self.important_minorities or [])
         must = set(self.must_have or [])
-        y_tr = y_train.cast(pl.Float64).to_numpy()
-        y_va = y_val.cast(pl.Float64).to_numpy()
-        t_va = t_val.to_numpy()
-        w_tr = weights_train.cast(pl.Float64).to_numpy() if weights_train is not None else np.ones(len(y_tr))
-        w_va = weights_val.cast(pl.Float64).to_numpy() if weights_val is not None else np.ones(len(y_va))
+        y_train_np = y_train.cast(pl.Float64).to_numpy()
+        y_val_np = y_val.cast(pl.Float64).to_numpy()
+        time_val_np = t_val.to_numpy()
+        weights_train_np = weights_train.cast(pl.Float64).to_numpy() if weights_train is not None else np.ones(len(y_train_np))
+        weights_val_np = weights_val.cast(pl.Float64).to_numpy() if weights_val is not None else np.ones(len(y_val_np))
 
         bin_specs: dict[str, dict[str, Any]] = {}
         self.excluded_: list[str] = []
 
         for feat in X_train.columns:
             arrays = self._prepare_feature_data(feat, X_train, X_val)
-            spec = self._fit_feature(feat, arrays, y_tr, w_tr, y_va, w_va, t_va, feat in minorities, feat in must)
+            spec = self._fit_feature(feat, arrays, y_train_np, weights_train_np, y_val_np, weights_val_np, time_val_np, feat in minorities, feat in must)
             if spec is None:
                 self.excluded_.append(feat)
             else:
@@ -429,14 +429,14 @@ class StabilityGrouping(BaseEstimator, TransformerMixin):
 
     def _evaluate_bin_counts(
         self,
-        x_tr: np.ndarray,
-        y_tr: np.ndarray,
-        w_tr: np.ndarray,
-        x_va: np.ndarray,
-        y_va: np.ndarray,
-        w_va: np.ndarray,
-        t_va: np.ndarray,
-        is_cat: bool,
+        x_train: np.ndarray,
+        y_train: np.ndarray,
+        weights_train: np.ndarray,
+        x_val: np.ndarray,
+        y_val: np.ndarray,
+        weights_val: np.ndarray,
+        time_val: np.ndarray,
+        is_categorical: bool,
         min_leaf: int,
     ) -> tuple[np.ndarray, np.ndarray]:
         rsi_values: list[float] = []
@@ -446,29 +446,29 @@ class StabilityGrouping(BaseEstimator, TransformerMixin):
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 try:
-                    booster = _train_lgbm(params, x_tr, y_tr, w_tr, x_va, y_va, w_va, is_cat)
+                    booster = _train_lgbm(params, x_train, y_train, weights_train, x_val, y_val, weights_val, is_categorical)
                 except Exception:
                     rsi_values.append(0.0)
                     gini_values.append(0.0)
                     continue
-            val_leaf_scores = booster.predict(x_va.reshape(-1, 1), num_iteration=1)
-            rsi_values.append(_bins_rsi(val_leaf_scores, y_va, w_va, t_va, self.stability_threshold))
-            gini_values.append(_monthly_gini(val_leaf_scores, y_va, w_va, t_va))
+            val_leaf_predictions = booster.predict(x_val.reshape(-1, 1), num_iteration=1)
+            rsi_values.append(_bins_rsi(val_leaf_predictions, y_val, weights_val, time_val, self.stability_threshold))
+            gini_values.append(_monthly_gini(val_leaf_predictions, y_val, weights_val, time_val))
         return np.array(rsi_values), np.array(gini_values)
 
     def _auto_group(
         self,
-        x_tr: np.ndarray,
-        y_tr: np.ndarray,
-        w_tr: np.ndarray,
-        x_va: np.ndarray,
-        y_va: np.ndarray,
-        w_va: np.ndarray,
-        t_va: np.ndarray,
-        is_cat: bool,
+        x_train: np.ndarray,
+        y_train: np.ndarray,
+        weights_train: np.ndarray,
+        x_val: np.ndarray,
+        y_val: np.ndarray,
+        weights_val: np.ndarray,
+        time_val: np.ndarray,
+        is_categorical: bool,
         is_minority: bool,
         is_must: bool,
         min_leaf: int,
     ) -> GroupingResult:
-        rsi_arr, gini_arr = self._evaluate_bin_counts(x_tr, y_tr, w_tr, x_va, y_va, w_va, t_va, is_cat, min_leaf)
+        rsi_arr, gini_arr = self._evaluate_bin_counts(x_train, y_train, weights_train, x_val, y_val, weights_val, time_val, is_categorical, min_leaf)
         return _select_best_bins(rsi_arr, gini_arr, is_minority, is_must)
