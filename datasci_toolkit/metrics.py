@@ -3,9 +3,9 @@ from __future__ import annotations
 import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
+from scipy.stats import ks_2samp
 from sklearn.base import BaseEstimator
 from sklearn.metrics import roc_auc_score
-from scipy.stats import ks_2samp
 
 
 def gini(
@@ -13,19 +13,19 @@ def gini(
     y_pred: np.ndarray | pl.Series,
     sample_weight: np.ndarray | pl.Series | None = None,
 ) -> float:
-    yt = np.asarray(y_true, dtype=float)
-    yp = np.asarray(y_pred, dtype=float)
-    sw = np.asarray(sample_weight, dtype=float) if sample_weight is not None else None
-    return 2.0 * float(roc_auc_score(yt, yp, sample_weight=sw)) - 1.0
+    y_true = np.asarray(y_true, dtype=float)
+    y_pred = np.asarray(y_pred, dtype=float)
+    weights = np.asarray(sample_weight, dtype=float) if sample_weight is not None else None
+    return 2.0 * float(roc_auc_score(y_true, y_pred, sample_weight=weights)) - 1.0
 
 
 def ks(
     y_true: np.ndarray | pl.Series,
     y_pred: np.ndarray | pl.Series,
 ) -> float:
-    yt = np.asarray(y_true, dtype=float)
-    yp = np.asarray(y_pred, dtype=float)
-    return float(ks_2samp(yp[yt == 1], yp[yt == 0]).statistic)
+    y_true = np.asarray(y_true, dtype=float)
+    y_pred = np.asarray(y_pred, dtype=float)
+    return float(ks_2samp(y_pred[y_true == 1], y_pred[y_true == 0]).statistic)
 
 
 def lift(
@@ -33,27 +33,27 @@ def lift(
     y_pred: np.ndarray | pl.Series,
     perc: float = 10.0,
 ) -> float:
-    yt = np.asarray(y_true, dtype=float)
-    yp = np.asarray(y_pred, dtype=float)
-    cutoff = float(np.percentile(yp, perc))
-    return float(yt[yp <= cutoff].mean() / yt.mean())
+    y_true = np.asarray(y_true, dtype=float)
+    y_pred = np.asarray(y_pred, dtype=float)
+    cutoff = float(np.percentile(y_pred, perc))
+    return float(y_true[y_pred <= cutoff].mean() / y_true.mean())
 
 
 def iv(
     y_true: np.ndarray | pl.Series,
     x: np.ndarray | pl.Series,
 ) -> float:
-    yt = np.asarray(y_true, dtype=float)
-    xv = np.asarray(x)
-    n_ev = float((yt == 1).sum()) + 1.0
-    n_nev = float((yt == 0).sum()) + 1.0
+    y_true = np.asarray(y_true, dtype=float)
+    x = np.asarray(x)
+    n_events = float((y_true == 1).sum()) + 1.0
+    n_nonevents = float((y_true == 0).sum()) + 1.0
     result = 0.0
-    for v in np.unique(xv):
-        mask = xv == v
-        ev = float(((yt == 1) & mask).sum()) + 1.0
-        nev = float(((yt == 0) & mask).sum()) + 1.0
-        woe = np.log((nev / n_nev) / (ev / n_ev))
-        result += woe * (nev / n_nev - ev / n_ev)
+    for value in np.unique(x):
+        mask = x == value
+        bin_events = float(((y_true == 1) & mask).sum()) + 1.0
+        bin_nonevents = float(((y_true == 0) & mask).sum()) + 1.0
+        woe = np.log((bin_nonevents / n_nonevents) / (bin_events / n_events))
+        result += woe * (bin_nonevents / n_nonevents - bin_events / n_events)
     return result
 
 
@@ -88,16 +88,16 @@ class BootstrapGini(BaseEstimator):
         y_pred: np.ndarray | pl.Series,
         sample_weight: np.ndarray | pl.Series | None = None,
     ) -> "BootstrapGini":
-        yt = np.asarray(y_true, dtype=float)
-        yp = np.asarray(y_pred, dtype=float)
-        sw = np.asarray(sample_weight, dtype=float) if sample_weight is not None else None
+        y_true = np.asarray(y_true, dtype=float)
+        y_pred = np.asarray(y_pred, dtype=float)
+        weights = np.asarray(sample_weight, dtype=float) if sample_weight is not None else None
         rng = np.random.default_rng(self.seed)
-        n = len(yt)
+        n = len(y_true)
         scores: list[float] = []
         for _ in range(self.n_iter):
             idx = rng.integers(0, n, size=n)
-            w = sw[idx] if sw is not None else None
-            scores.append(gini(yt[idx], yp[idx], sample_weight=w))
+            w = weights[idx] if weights is not None else None
+            scores.append(gini(y_true[idx], y_pred[idx], sample_weight=w))
         alpha = (100.0 - self.ci_level) / 2.0
         self.mean_: float = float(np.mean(scores))
         self.std_: float = float(np.std(scores))
@@ -117,18 +117,22 @@ def gini_by_period(
     mask: pl.Series | None = None,
     sample_weight: pl.Series | None = None,
 ) -> pl.DataFrame:
-    yt = y.cast(pl.Float64).to_numpy()
-    yp = y_pred.cast(pl.Float64).to_numpy()
-    t = periods.to_numpy()
-    m = mask.to_numpy().astype(bool) if mask is not None else np.ones(len(yt), dtype=bool)
-    sw = sample_weight.cast(pl.Float64).to_numpy() if sample_weight is not None else None
+    y_true = y.cast(pl.Float64).to_numpy()
+    y_pred_arr = y_pred.cast(pl.Float64).to_numpy()
+    period_arr = periods.to_numpy()
+    inclusion = mask.to_numpy().astype(bool) if mask is not None else np.ones(len(y_true), dtype=bool)
+    weights = sample_weight.cast(pl.Float64).to_numpy() if sample_weight is not None else None
     rows = []
-    for period in np.sort(np.unique(t)):
-        idx = m & (t == period)
-        if idx.sum() < 2 or len(np.unique(yt[idx])) < 2:
+    for period in np.sort(np.unique(period_arr)):
+        period_mask = inclusion & (period_arr == period)
+        if period_mask.sum() < 2 or len(np.unique(y_true[period_mask])) < 2:
             continue
-        g = gini(yt[idx], yp[idx], sample_weight=sw[idx] if sw is not None else None)
-        rows.append({"period": period, "gini": g, "count": int(idx.sum())})
+        period_gini = gini(
+            y_true[period_mask],
+            y_pred_arr[period_mask],
+            sample_weight=weights[period_mask] if weights is not None else None,
+        )
+        rows.append({"period": period, "gini": period_gini, "count": int(period_mask.sum())})
     return pl.DataFrame(rows)
 
 
@@ -140,16 +144,16 @@ def lift_by_period(
     perc: float = 10.0,
     mask: pl.Series | None = None,
 ) -> pl.DataFrame:
-    yt = y.cast(pl.Float64).to_numpy()
-    yp = y_pred.cast(pl.Float64).to_numpy()
-    t = periods.to_numpy()
-    m = mask.to_numpy().astype(bool) if mask is not None else np.ones(len(yt), dtype=bool)
+    y_true = y.cast(pl.Float64).to_numpy()
+    y_pred_arr = y_pred.cast(pl.Float64).to_numpy()
+    period_arr = periods.to_numpy()
+    inclusion = mask.to_numpy().astype(bool) if mask is not None else np.ones(len(y_true), dtype=bool)
     rows = []
-    for period in np.sort(np.unique(t)):
-        idx = m & (t == period)
-        if idx.sum() < 2 or float(yt[idx].mean()) == 0.0:
+    for period in np.sort(np.unique(period_arr)):
+        period_mask = inclusion & (period_arr == period)
+        if period_mask.sum() < 2 or float(y_true[period_mask].mean()) == 0.0:
             continue
-        rows.append({"period": period, "lift": lift(yt[idx], yp[idx], perc), "count": int(idx.sum())})
+        rows.append({"period": period, "lift": lift(y_true[period_mask], y_pred_arr[period_mask], perc), "count": int(period_mask.sum())})
     return pl.DataFrame(rows)
 
 
@@ -195,14 +199,14 @@ def feature_power(
     y: pl.Series,
     sample_weight: pl.Series | None = None,
 ) -> pl.DataFrame:
-    yt = y.cast(pl.Float64).to_numpy()
-    sw: np.ndarray | None = sample_weight.cast(pl.Float64).to_numpy() if sample_weight is not None else None
+    y_true = y.cast(pl.Float64).to_numpy()
+    weights: np.ndarray | None = sample_weight.cast(pl.Float64).to_numpy() if sample_weight is not None else None
     rows = []
     for col in X.columns:
-        xp = X[col].cast(pl.Float64).to_numpy()
+        feature_arr = X[col].cast(pl.Float64).to_numpy()
         rows.append({
             "feature": col,
-            "gini": round(gini(yt, -xp, sample_weight=sw), 6),
-            "iv": round(iv(yt, xp), 6),
+            "gini": round(gini(y_true, -feature_arr, sample_weight=weights), 6),
+            "iv": round(iv(y_true, feature_arr), 6),
         })
     return pl.DataFrame(rows).sort("gini", descending=True)

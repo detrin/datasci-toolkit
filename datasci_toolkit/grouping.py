@@ -38,30 +38,29 @@ def _rsi(scores: np.ndarray, event_rates: np.ndarray, months: np.ndarray, thresh
     if span == 0.0:
         return 1.0
 
-    rank_arr = np.zeros(len(scores), dtype=int)
-    for m in np.unique(months):
-        idx = np.where(months == m)[0]
-        order = np.argsort(-event_rates[idx])
+    bin_ranks = np.zeros(len(scores), dtype=int)
+    for month in np.unique(months):
+        month_idx = np.where(months == month)[0]
+        order = np.argsort(-event_rates[month_idx])
         for rank_pos, pos in enumerate(order):
-            rank_arr[idx[pos]] = rank_pos
+            bin_ranks[month_idx[pos]] = rank_pos
 
-    rsi_total = 0.0
-    unique_scores = np.unique(scores)
-    for s in unique_scores:
-        mask = scores == s
-        order = np.argsort(months[mask])
-        s_ranks = rank_arr[mask][order]
-        s_rates = event_rates[mask][order]
+    stability_sum = 0.0
+    for bin_score in np.unique(scores):
+        score_mask = scores == bin_score
+        time_order = np.argsort(months[score_mask])
+        sorted_ranks = bin_ranks[score_mask][time_order]
+        sorted_rates = event_rates[score_mask][time_order]
 
-        mode_rank = int(np.bincount(s_ranks).argmax())
-        max_leap = 0.0
-        for i in range(len(s_ranks) - 1):
-            if s_ranks[i] != s_ranks[i + 1]:
-                max_leap = max(max_leap, abs(float(s_rates[i]) - float(s_rates[i + 1])))
+        dominant_rank = int(np.bincount(sorted_ranks).argmax())
+        max_rate_jump = 0.0
+        for i in range(len(sorted_ranks) - 1):
+            if sorted_ranks[i] != sorted_ranks[i + 1]:
+                max_rate_jump = max(max_rate_jump, abs(float(sorted_rates[i]) - float(sorted_rates[i + 1])))
 
-        rsi_total += 1.0 if max_leap / span <= threshold else float(np.mean(s_ranks == mode_rank))
+        stability_sum += 1.0 if max_rate_jump / span <= threshold else float(np.mean(sorted_ranks == dominant_rank))
 
-    return rsi_total / len(unique_scores)
+    return stability_sum / len(np.unique(scores))
 
 
 def _encode_cats(x: np.ndarray, mapping: dict[str, int] | None = None) -> tuple[np.ndarray, dict[str, int]]:
@@ -106,30 +105,30 @@ def _train_lgbm(
 
 
 def _num_bin_spec(bst: Any, x: np.ndarray) -> dict[str, Any]:
-    non_null = ~np.isnan(x)
-    x_obs = x[non_null]
-    p = bst.predict(x_obs.reshape(-1, 1), num_iteration=1)
+    observed_mask = ~np.isnan(x)
+    x_observed = x[observed_mask]
+    leaf_scores = bst.predict(x_observed.reshape(-1, 1), num_iteration=1)
 
     buckets = sorted(
-        [{"min": float(x_obs[p == s].min()), "max": float(x_obs[p == s].max())} for s in np.unique(p)],
+        [{"min": float(x_observed[leaf_scores == s].min()), "max": float(x_observed[leaf_scores == s].max())} for s in np.unique(leaf_scores)],
         key=lambda b: b["max"],
     )
     bins: list[float] = (
         [-np.inf]
-        + [(b["max"] + nb["min"]) / 2.0 for b, nb in zip(buckets[:-1], buckets[1:])]
+        + [(bucket["max"] + next_bucket["min"]) / 2.0 for bucket, next_bucket in zip(buckets[:-1], buckets[1:])]
         + [np.inf]
     )
     return {"dtype": "float", "bins": bins}
 
 
 def _cat_bin_spec(bst: Any, x_enc: np.ndarray, x_orig: np.ndarray) -> dict[str, Any]:
-    non_null = ~np.isnan(x_enc)
-    p = bst.predict(x_enc[non_null].reshape(-1, 1), num_iteration=1)
-    x_obs = x_orig[non_null]
+    observed_mask = ~np.isnan(x_enc)
+    leaf_scores = bst.predict(x_enc[observed_mask].reshape(-1, 1), num_iteration=1)
+    x_observed = x_orig[observed_mask]
 
     bins: dict[str, int] = {}
-    for bucket_idx, score in enumerate(sorted(np.unique(p))):
-        for cat in np.unique(x_obs[p == score]):
+    for bucket_idx, score in enumerate(sorted(np.unique(leaf_scores))):
+        for cat in np.unique(x_observed[leaf_scores == score]):
             bins[str(cat)] = bucket_idx
 
     return {"dtype": "category", "bins": bins}
@@ -160,24 +159,24 @@ def _bins_rsi(
     t_va: np.ndarray,
     threshold: float,
 ) -> float:
-    scores_all: list[float] = []
-    rates_all: list[float] = []
-    months_all: list[Any] = []
-    for m in np.unique(t_va):
-        mask = t_va == m
-        p_m, y_m, w_m = p_va[mask], y_va[mask], w_va[mask]
-        for s in np.unique(p_m):
-            smask = p_m == s
-            w_sum = float(w_m[smask].sum())
-            if w_sum == 0.0:
+    bin_scores: list[float] = []
+    bin_event_rates: list[float] = []
+    obs_months: list[Any] = []
+    for month in np.unique(t_va):
+        month_mask = t_va == month
+        month_preds, month_targets, month_weights = p_va[month_mask], y_va[month_mask], w_va[month_mask]
+        for score in np.unique(month_preds):
+            score_mask = month_preds == score
+            total_weight = float(month_weights[score_mask].sum())
+            if total_weight == 0.0:
                 continue
-            scores_all.append(float(s))
-            rates_all.append(float((y_m[smask] * w_m[smask]).sum() / w_sum))
-            months_all.append(m)
+            bin_scores.append(float(score))
+            bin_event_rates.append(float((month_targets[score_mask] * month_weights[score_mask]).sum() / total_weight))
+            obs_months.append(month)
     return _rsi(
-        np.array(scores_all),
-        np.array(rates_all),
-        np.array(months_all),
+        np.array(bin_scores),
+        np.array(bin_event_rates),
+        np.array(obs_months),
         threshold,
     )
 
@@ -346,9 +345,9 @@ class StabilityGrouping(BaseEstimator, TransformerMixin):
                 params = {**_LGBM_PARAMS, "num_leaves": n_bins, "min_data_in_leaf": min_leaf}
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
-                    bst = _train_lgbm(params, x_tr_enc, y_tr, w_tr, x_va_enc, y_va, w_va, is_cat)
+                    booster = _train_lgbm(params, x_tr_enc, y_tr, w_tr, x_va_enc, y_va, w_va, is_cat)
 
-                spec = _cat_bin_spec(bst, x_tr_enc, x_tr_orig) if is_cat else _num_bin_spec(bst, x_tr_enc)
+                spec = _cat_bin_spec(booster, x_tr_enc, x_tr_orig) if is_cat else _num_bin_spec(booster, x_tr_enc)
                 bin_specs[feat] = spec
 
         self.bin_specs_: dict[str, dict[str, Any]] = bin_specs
@@ -387,15 +386,15 @@ class StabilityGrouping(BaseEstimator, TransformerMixin):
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 try:
-                    bst = _train_lgbm(params, x_tr, y_tr, w_tr, x_va, y_va, w_va, is_cat)
+                    booster = _train_lgbm(params, x_tr, y_tr, w_tr, x_va, y_va, w_va, is_cat)
                 except Exception:
                     rsi_values.append(0.0)
                     gini_values.append(0.0)
                     continue
 
-            p_va = bst.predict(x_va.reshape(-1, 1), num_iteration=1)
-            rsi_values.append(_bins_rsi(p_va, y_va, w_va, t_va, self.stability_threshold))
-            gini_values.append(_monthly_gini(p_va, y_va, w_va, t_va))
+            val_leaf_scores = booster.predict(x_va.reshape(-1, 1), num_iteration=1)
+            rsi_values.append(_bins_rsi(val_leaf_scores, y_va, w_va, t_va, self.stability_threshold))
+            gini_values.append(_monthly_gini(val_leaf_scores, y_va, w_va, t_va))
 
         rsi_arr = np.array(rsi_values)
         for i in range(1, len(rsi_arr)):

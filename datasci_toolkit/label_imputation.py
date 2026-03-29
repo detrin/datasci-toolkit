@@ -42,18 +42,18 @@ class TargetImputer(BaseEstimator):
         proba: np.ndarray | pl.Series,
         weights: np.ndarray | pl.Series | None = None,
     ) -> "TargetImputer":
-        p = np.asarray(proba, dtype=float)
-        w = np.asarray(weights, dtype=float) if weights is not None else np.ones(len(p))
+        probabilities = np.asarray(proba, dtype=float)
+        sample_weights = np.asarray(weights, dtype=float) if weights is not None else np.ones(len(probabilities))
         if self.method == "weighted":
-            self.targets_: np.ndarray = np.concatenate([np.ones(len(p)), np.zeros(len(p))])
-            self.weights_: np.ndarray = np.concatenate([w * p, w * (1.0 - p)])
+            self.targets_: np.ndarray = np.concatenate([np.ones(len(probabilities)), np.zeros(len(probabilities))])
+            self.weights_: np.ndarray = np.concatenate([sample_weights * probabilities, sample_weights * (1.0 - probabilities)])
         elif self.method == "randomized":
             rng = np.random.default_rng(self.seed)
-            self.targets_ = (p > rng.uniform(size=len(p))).astype(float)
-            self.weights_ = w.copy()
+            self.targets_ = (probabilities > rng.uniform(size=len(probabilities))).astype(float)
+            self.weights_ = sample_weights.copy()
         elif self.method == "cutoff":
-            self.targets_ = (p > self.cutoff).astype(float)
-            self.weights_ = w.copy()
+            self.targets_ = (probabilities > self.cutoff).astype(float)
+            self.weights_ = sample_weights.copy()
         else:
             raise ValueError(f"method must be 'weighted', 'randomized', or 'cutoff', got {self.method!r}")
         return self

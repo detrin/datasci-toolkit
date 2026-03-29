@@ -20,17 +20,17 @@ def _bin_stats(y: np.ndarray, w: np.ndarray, assignments: np.ndarray, n_bins: in
     nonevents = counts - events
     event_rates = np.where(counts > 0, events / counts, np.nan)
 
-    ev_d, nev_d = events[:n_bins], nonevents[:n_bins]
-    dist_ev = (ev_d + _SMOOTH) / (total_ev + _SMOOTH * n_bins)
-    dist_nev = (nev_d + _SMOOTH) / (total_nev + _SMOOTH * n_bins)
-    woe_d = np.log(dist_ev / dist_nev)
-    iv = float(((dist_ev - dist_nev) * woe_d).sum())
+    events_per_bin, nonevents_per_bin = events[:n_bins], nonevents[:n_bins]
+    event_dist = (events_per_bin + _SMOOTH) / (total_ev + _SMOOTH * n_bins)
+    nonevent_dist = (nonevents_per_bin + _SMOOTH) / (total_nev + _SMOOTH * n_bins)
+    woe_per_bin = np.log(event_dist / nonevent_dist)
+    iv = float(((event_dist - nonevent_dist) * woe_per_bin).sum())
 
-    nan_de = (events[n_bins] + _SMOOTH) / (total_ev + _SMOOTH)
-    nan_dn = (nonevents[n_bins] + _SMOOTH) / (total_nev + _SMOOTH)
-    woe_nan = float(np.log(nan_de / nan_dn))
+    nan_event_dist = (events[n_bins] + _SMOOTH) / (total_ev + _SMOOTH)
+    nan_nonevent_dist = (nonevents[n_bins] + _SMOOTH) / (total_nev + _SMOOTH)
+    woe_nan = float(np.log(nan_event_dist / nan_nonevent_dist))
 
-    return {"counts": counts, "event_rates": event_rates, "woe": np.append(woe_d, woe_nan), "iv": iv}
+    return {"counts": counts, "event_rates": event_rates, "woe": np.append(woe_per_bin, woe_nan), "iv": iv}
 
 
 def _temporal_stats(
@@ -93,8 +93,8 @@ def _cat_assign(x: np.ndarray, cat_bins: dict[str, int]) -> np.ndarray:
 def _num_labels(splits: list[float]) -> list[str]:
     if not splits:
         return ["-inf to inf", "NaN"]
-    s = [f"{v:.4g}" for v in splits]
-    return [f"-inf to {s[0]}"] + [f"{s[i]} to {s[i+1]}" for i in range(len(s) - 1)] + [f"{s[-1]} to inf", "NaN"]
+    split_strs = [f"{v:.4g}" for v in splits]
+    return [f"-inf to {split_strs[0]}"] + [f"{split_strs[i]} to {split_strs[i+1]}" for i in range(len(split_strs) - 1)] + [f"{split_strs[-1]} to inf", "NaN"]
 
 
 def _num_state(feat: str, splits: list[float], x: np.ndarray, y: np.ndarray, w: np.ndarray) -> dict[str, Any]:

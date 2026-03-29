@@ -32,15 +32,15 @@ def _same_sign(coef: np.ndarray) -> bool:
 
 def _fit_logit(X: np.ndarray, y: np.ndarray, w: np.ndarray | None, penalty: str, C: float) -> LogisticRegression:
     if penalty == "l1":
-        m = LogisticRegression(C=C, solver="saga", l1_ratio=1.0, max_iter=1000)
+        model = LogisticRegression(C=C, solver="saga", l1_ratio=1.0, max_iter=1000)
     else:
-        m = LogisticRegression(C=C, solver="lbfgs", max_iter=1000)
-    m.fit(X, y, sample_weight=w)
-    return m
+        model = LogisticRegression(C=C, solver="lbfgs", max_iter=1000)
+    model.fit(X, y, sample_weight=w)
+    return model
 
 
-def _auc(y: np.ndarray, p: np.ndarray, w: np.ndarray | None = None) -> float:
-    return float(roc_auc_score(y, p, sample_weight=w))
+def _auc(y: np.ndarray, y_pred: np.ndarray, w: np.ndarray | None = None) -> float:
+    return float(roc_auc_score(y, y_pred, sample_weight=w))
 
 
 def _cv_auc(
@@ -148,13 +148,13 @@ class AUCStepwiseLogit(BaseEstimator):
         key = frozenset(predictors)
         if key in cache:
             return cache[key]
-        idx = [col_idx[p] for p in predictors]
-        m = _fit_logit(X_tr[:, idx], y_tr, w_tr, self.penalty, self.C)
+        col_indices = [col_idx[feat] for feat in predictors]
+        model = _fit_logit(X_tr[:, col_indices], y_tr, w_tr, self.penalty, self.C)
         if self.use_cv:
-            score = _cv_auc(X_tr[:, idx], y_tr, w_tr, self.penalty, self.C, self.cv_folds, self.cv_seed, self.cv_stratify)
+            score = _cv_auc(X_tr[:, col_indices], y_tr, w_tr, self.penalty, self.C, self.cv_folds, self.cv_seed, self.cv_stratify)
         else:
-            score = _auc(y_va, m.predict_proba(X_va[:, idx])[:, 1], w_va)
-        result = (score, _same_sign(m.coef_.ravel()))
+            score = _auc(y_va, model.predict_proba(X_va[:, col_indices])[:, 1], w_va)
+        result = (score, _same_sign(model.coef_.ravel()))
         cache[key] = result
         return result
 
@@ -307,7 +307,7 @@ class AUCStepwiseLogit(BaseEstimator):
 
         if current_preds:
             auc0, sgn0 = self._score(current_preds, X_tr, y_tr, w_tr, X_va, y_va, w_va, col_idx, cache)
-            corr0 = _max_abs_corr(corr, [col_idx[p] for p in current_preds])
+            corr0 = _max_abs_corr(corr, [col_idx[feat] for feat in current_preds])
         else:
             auc0, sgn0, corr0 = 0.5, True, 0.0
 
