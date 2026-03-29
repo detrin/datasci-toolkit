@@ -1,6 +1,7 @@
 # datasci-toolkit
 
-Clean Python library for credit scoring and binary classification workflows.
+My personal Python toolkit for data science — a clean rewrite of tools I use day-to-day for binary classification, scorecard development, and model validation.
+
 Polars-native, sklearn-compatible, zero external state.
 
 ## Modules
@@ -11,15 +12,9 @@ Polars-native, sklearn-compatible, zero external state.
 | `grouping` | `StabilityGrouping`, `WOETransformer` | Stability-constrained optimal binning and WOE encoding |
 | `metrics` | `gini`, `ks`, `lift`, `iv`, `BootstrapGini`, `feature_power`, `gini_by_period`, `lift_by_period`, `plot_metric_by_period` | Binary classification metrics with period breakdowns |
 | `model_selection` | `AUCStepwiseLogit` | Gini-based stepwise logistic regression |
-| `label_imputation` | `KNNLabelImputer`, `TargetImputer` | WOE-space KNN imputation for missing labels |
+| `label_imputation` | `KNNLabelImputer`, `TargetImputer` | KNN imputation for records with missing labels |
 | `bin_editor` | `BinEditor`, `BinEditorWidget` | Headless and interactive bin boundary editor |
 | `variable_clustering` | `CorrVarClus` | Hierarchical correlation clustering for variable reduction |
-
-## Install
-
-```bash
-pip install datasci-toolkit
-```
 
 ## Quick start
 
@@ -47,18 +42,7 @@ model = AUCStepwiseLogit(max_predictors=10, max_correlation=0.8).fit(
 
 ## Documentation
 
-Interactive examples are published to GitHub Pages:
 **[detrin.github.io/datasci-toolkit](https://detrin.github.io/datasci-toolkit)**
-
-| Notebook | Topic |
-|---|---|
-| [01 Stability](https://detrin.github.io/datasci-toolkit/01_stability.html) | PSI drift detection, StabilityMonitor, ESI |
-| [02 Grouping](https://detrin.github.io/datasci-toolkit/02_grouping.html) | StabilityGrouping, WOETransformer |
-| [03 Metrics](https://detrin.github.io/datasci-toolkit/03_metrics.html) | Gini, KS, lift, IV, bootstrap CI, period breakdowns |
-| [04 Model selection](https://detrin.github.io/datasci-toolkit/04_model_selection.html) | AUCStepwiseLogit, correlation filter, CV mode |
-| [05 Label imputation](https://detrin.github.io/datasci-toolkit/05_label_imputation.html) | KNNLabelImputer, TargetImputer |
-| [06 Bin editor](https://detrin.github.io/datasci-toolkit/06_bin_editor.html) | BinEditor headless API, BinEditorWidget |
-| [07 Variable clustering](https://detrin.github.io/datasci-toolkit/07_variable_clustering.html) | CorrVarClus dendrogram, best_features |
 
 ## Stack
 
