@@ -7,7 +7,7 @@ import polars as pl
 from joblib import Parallel, delayed
 from sklearn.base import BaseEstimator, clone
 from sklearn.metrics import check_scoring
-from sklearn.model_selection import check_cv
+from sklearn.model_selection import StratifiedKFold, check_cv
 from sklearn.utils.validation import check_is_fitted
 
 from datasci_toolkit.feature_elimination._shap import compute_shap_values, shap_importance
@@ -55,7 +55,10 @@ class ShapImportance(BaseEstimator):
         X_np = X.to_numpy().astype(np.float64)
         y_np = y.to_numpy().astype(np.float64)
         scorer = check_scoring(self.model, scoring=self.scoring)
-        cv = check_cv(self.cv, y_np, classifier=True)
+        if isinstance(self.cv, int) and self.random_state is not None:
+            cv = StratifiedKFold(n_splits=self.cv, shuffle=True, random_state=self.random_state)
+        else:
+            cv = check_cv(self.cv, y_np, classifier=True)
 
         results = Parallel(n_jobs=self.n_jobs)(
             delayed(_fold_shap)(self.model, X_np, y_np, columns, train_idx, val_idx, scorer)

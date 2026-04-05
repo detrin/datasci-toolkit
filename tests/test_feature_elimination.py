@@ -122,8 +122,9 @@ class TestShapImportanceEstimator:
         assert result.equals(est.feature_importances_)
 
     def test_compute_before_fit_raises(self) -> None:
+        from sklearn.exceptions import NotFittedError
         est = ShapImportance(model=lgb.LGBMClassifier(n_estimators=10, verbose=-1, random_state=42))
-        with pytest.raises(Exception):
+        with pytest.raises(NotFittedError):
             est.compute()
 
     def test_works_with_xgboost(self, binary_dataset: tuple[pl.DataFrame, pl.Series]) -> None:
