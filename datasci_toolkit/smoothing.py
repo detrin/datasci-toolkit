@@ -112,7 +112,7 @@ class PredictionSmoother(BaseEstimator, TransformerMixin):
             binary = False
             cols = prob_cols
 
-        agg_exprs = [pl.col(c).mean().round(10).alias(c) for c in cols]
+        agg_exprs = [pl.col(c).mean().alias(c) for c in cols]
         agg_exprs.append(pl.len().alias("observation_count"))
         result = X.group_by(entity_cols).agg(agg_exprs)
         result = result.filter(pl.col("observation_count") >= self.min_observations)

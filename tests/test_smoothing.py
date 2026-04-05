@@ -114,8 +114,8 @@ def multiclass_pred_df() -> pl.DataFrame:
     return pl.DataFrame({
         "eid": ["A", "A", "A", "B", "B"],
         "month": [1, 2, 3, 1, 2],
-        "prob_cat": [0.5, 0.3, 0.4, 0.1, 0.2],
-        "prob_dog": [0.3, 0.5, 0.4, 0.8, 0.7],
+        "prob_cat": [0.6, 0.3, 0.4, 0.1, 0.2],
+        "prob_dog": [0.2, 0.5, 0.4, 0.8, 0.7],
         "prob_bird": [0.2, 0.2, 0.2, 0.1, 0.1],
     })
 
@@ -185,8 +185,8 @@ class TestPredictionSmootherMulticlass:
         ps = PredictionSmoother().fit()
         result = ps.transform(multiclass_pred_df, entity_cols=["eid"], period_col="month", prob_cols=["prob_cat", "prob_dog", "prob_bird"])
         a_row = result.filter(pl.col("eid") == "A")
-        assert abs(a_row["prob_cat"][0] - 0.4) < 1e-6
-        assert abs(a_row["prob_dog"][0] - 0.4) < 1e-6
+        assert abs(a_row["prob_cat"][0] - 1.3 / 3) < 1e-6
+        assert abs(a_row["prob_dog"][0] - 1.1 / 3) < 1e-6
         assert abs(a_row["prob_bird"][0] - 0.2) < 1e-6
 
     def test_multiple_entity_cols(self) -> None:
