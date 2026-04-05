@@ -1,11 +1,16 @@
 from __future__ import annotations
 
 import lightgbm as lgb
+import matplotlib
 import numpy as np
 import polars as pl
 import pytest
 import xgboost as xgb
+from matplotlib.figure import Figure
 
+matplotlib.use("Agg")
+
+from datasci_toolkit.feature_elimination._plot import plot_shap_elimination
 from datasci_toolkit.feature_elimination._shap import compute_shap_values, shap_importance
 from datasci_toolkit.feature_elimination.elimination import ShapRFE
 from datasci_toolkit.feature_elimination.importance import ShapImportance
@@ -249,3 +254,26 @@ class TestGetReducedFeatures:
         for method in ["best", "best_coherent", "best_parsimonious"]:
             result = fitted_rfe.get_reduced_features(method)
             assert set(result).issubset(all_features)
+
+
+class TestPlotShapElimination:
+    def test_returns_figure(self, binary_dataset: tuple[pl.DataFrame, pl.Series]) -> None:
+        X, y = binary_dataset
+        rfe = ShapRFE(model=lgb.LGBMClassifier(n_estimators=10, verbose=-1, random_state=42), step=1, min_features_to_select=2, cv=3, random_state=42)
+        rfe.fit(X, y)
+        fig = plot_shap_elimination(rfe.report_df_, show=False)
+        assert isinstance(fig, Figure)
+
+    def test_no_error_on_single_round(self) -> None:
+        report = pl.DataFrame({
+            "round": [1],
+            "n_features": [5],
+            "features": [["a", "b", "c", "d", "e"]],
+            "eliminated": [[]],
+            "train_score_mean": [0.9],
+            "train_score_std": [0.01],
+            "val_score_mean": [0.85],
+            "val_score_std": [0.02],
+        })
+        fig = plot_shap_elimination(report, show=False)
+        assert isinstance(fig, Figure)
