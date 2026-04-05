@@ -5,7 +5,7 @@
 [![Python](https://img.shields.io/pypi/pyversions/datasci-toolkit)](https://pypi.org/project/datasci-toolkit/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Polars-native Python toolkit for binary classification, scorecard development, and model validation.
+Polars-native Python toolkit for binary classification and model validation.
 
 sklearn-compatible estimators. Zero pandas. Zero comments.
 
