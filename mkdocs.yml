@@ -53,6 +53,7 @@ nav:
       - Bin Editor: tutorials/bin_editor.md
       - Variable Clustering: tutorials/variable_clustering.md
       - Feature Elimination (SHAP): tutorials/feature_elimination.md
+      - Temporal Features: tutorials/temporal.md
   - API Reference:
       - stability: api/stability.md
       - grouping: api/grouping.md
