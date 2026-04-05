@@ -7,6 +7,7 @@ import pytest
 import xgboost as xgb
 
 from datasci_toolkit.feature_elimination._shap import compute_shap_values, shap_importance
+from datasci_toolkit.feature_elimination.importance import ShapImportance
 
 RNG = np.random.default_rng(42)
 N = 500
@@ -88,3 +89,64 @@ class TestShapImportance:
         result = shap_importance(shap_vals, ["a", "b", "c", "d"], "mean", 0.5)
         assert result["importance"].is_nan().sum() == 0
         assert result["importance"].is_infinite().sum() == 0
+
+
+class TestShapImportanceEstimator:
+    def test_fit_returns_self(self, binary_dataset: tuple[pl.DataFrame, pl.Series]) -> None:
+        X, y = binary_dataset
+        est = ShapImportance(model=lgb.LGBMClassifier(n_estimators=10, verbose=-1, random_state=42), cv=3, random_state=42)
+        result = est.fit(X, y)
+        assert result is est
+
+    def test_feature_importances_schema(self, binary_dataset: tuple[pl.DataFrame, pl.Series]) -> None:
+        X, y = binary_dataset
+        est = ShapImportance(model=lgb.LGBMClassifier(n_estimators=10, verbose=-1, random_state=42), cv=3, random_state=42)
+        est.fit(X, y)
+        df = est.feature_importances_
+        assert isinstance(df, pl.DataFrame)
+        assert df.columns == ["feature", "importance", "std"]
+        assert len(df) == N_FEATURES
+
+    def test_feature_importances_sorted_desc(self, binary_dataset: tuple[pl.DataFrame, pl.Series]) -> None:
+        X, y = binary_dataset
+        est = ShapImportance(model=lgb.LGBMClassifier(n_estimators=10, verbose=-1, random_state=42), cv=3, random_state=42)
+        est.fit(X, y)
+        importances = est.feature_importances_["importance"].to_list()
+        assert importances == sorted(importances, reverse=True)
+
+    def test_compute_returns_importances(self, binary_dataset: tuple[pl.DataFrame, pl.Series]) -> None:
+        X, y = binary_dataset
+        est = ShapImportance(model=lgb.LGBMClassifier(n_estimators=10, verbose=-1, random_state=42), cv=3, random_state=42)
+        est.fit(X, y)
+        result = est.compute()
+        assert result.equals(est.feature_importances_)
+
+    def test_compute_before_fit_raises(self) -> None:
+        est = ShapImportance(model=lgb.LGBMClassifier(n_estimators=10, verbose=-1, random_state=42))
+        with pytest.raises(Exception):
+            est.compute()
+
+    def test_works_with_xgboost(self, binary_dataset: tuple[pl.DataFrame, pl.Series]) -> None:
+        X, y = binary_dataset
+        est = ShapImportance(model=xgb.XGBClassifier(n_estimators=10, verbosity=0, random_state=42), cv=3, random_state=42)
+        est.fit(X, y)
+        assert len(est.feature_importances_) == N_FEATURES
+
+    def test_variance_penalized_method(self, binary_dataset: tuple[pl.DataFrame, pl.Series]) -> None:
+        X, y = binary_dataset
+        est = ShapImportance(
+            model=lgb.LGBMClassifier(n_estimators=10, verbose=-1, random_state=42),
+            cv=3, random_state=42, importance_method="variance_penalized", variance_penalty_factor=1.0,
+        )
+        est.fit(X, y)
+        assert len(est.feature_importances_) == N_FEATURES
+
+    def test_stores_train_and_val_scores(self, binary_dataset: tuple[pl.DataFrame, pl.Series]) -> None:
+        X, y = binary_dataset
+        est = ShapImportance(model=lgb.LGBMClassifier(n_estimators=10, verbose=-1, random_state=42), cv=3, random_state=42)
+        est.fit(X, y)
+        assert hasattr(est, "train_score_mean_")
+        assert hasattr(est, "train_score_std_")
+        assert hasattr(est, "val_score_mean_")
+        assert hasattr(est, "val_score_std_")
+        assert 0.5 < est.val_score_mean_ < 1.0
