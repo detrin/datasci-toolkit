@@ -277,3 +277,31 @@ class TestPlotShapElimination:
         })
         fig = plot_shap_elimination(report, show=False)
         assert isinstance(fig, Figure)
+
+
+class TestEdgeCases:
+    def test_single_feature_dataset(self) -> None:
+        X = pl.DataFrame({"f0": RNG.normal(size=200).tolist()})
+        y = pl.Series("target", (RNG.normal(size=200) > 0).astype(int).tolist())
+        rfe = ShapRFE(model=lgb.LGBMClassifier(n_estimators=10, verbose=-1, random_state=42), step=1, min_features_to_select=1, cv=3, random_state=42)
+        rfe.fit(X, y)
+        assert rfe.report_df_["n_features"].to_list()[-1] == 1
+
+    def test_step_larger_than_features(self) -> None:
+        X = pl.DataFrame({"f0": RNG.normal(size=200).tolist(), "f1": RNG.normal(size=200).tolist(), "f2": RNG.normal(size=200).tolist()})
+        y = pl.Series("target", (RNG.normal(size=200) > 0).astype(int).tolist())
+        rfe = ShapRFE(model=lgb.LGBMClassifier(n_estimators=10, verbose=-1, random_state=42), step=10, min_features_to_select=1, cv=3, random_state=42)
+        rfe.fit(X, y)
+        assert rfe.report_df_["n_features"].to_list()[-1] >= 1
+
+    def test_all_columns_to_keep(self) -> None:
+        cols = [f"f{i}" for i in range(3)]
+        X = pl.DataFrame({c: RNG.normal(size=200).tolist() for c in cols})
+        y = pl.Series("target", (RNG.normal(size=200) > 0).astype(int).tolist())
+        rfe = ShapRFE(
+            model=lgb.LGBMClassifier(n_estimators=10, verbose=-1, random_state=42),
+            step=1, min_features_to_select=1, cv=3, random_state=42, columns_to_keep=cols,
+        )
+        rfe.fit(X, y)
+        last_features = rfe.report_df_["features"].to_list()[-1]
+        assert set(last_features) == set(cols)

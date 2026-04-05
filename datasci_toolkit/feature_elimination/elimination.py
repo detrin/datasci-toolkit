@@ -72,6 +72,15 @@ class ShapRFE(BaseEstimator):
             removable = [f for f in reversed(ranked) if f not in keep]
             eliminated = removable[:n_remove]
 
+            if not eliminated:
+                records.append({
+                    "round": round_num, "n_features": len(remaining),
+                    "features": list(remaining), "eliminated": [],
+                    "train_score_mean": imp.train_score_mean_, "train_score_std": imp.train_score_std_,
+                    "val_score_mean": imp.val_score_mean_, "val_score_std": imp.val_score_std_,
+                })
+                break
+
             records.append({
                 "round": round_num, "n_features": len(remaining),
                 "features": list(remaining), "eliminated": eliminated,
