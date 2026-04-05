@@ -11,6 +11,8 @@ dependencies = [
     "optbinning>=0.21.0",
     "polars>=1.39.3",
     "scikit-learn>=1.8.0",
+    "shap>=0.46.0",
+    "xgboost>=2.1.0",
     "scipy>=1.17.1",
 ]
 
