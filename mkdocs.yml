@@ -52,6 +52,7 @@ nav:
       - Label Imputation: tutorials/label_imputation.md
       - Bin Editor: tutorials/bin_editor.md
       - Variable Clustering: tutorials/variable_clustering.md
+      - Feature Elimination (SHAP): tutorials/feature_elimination.md
   - API Reference:
       - stability: api/stability.md
       - grouping: api/grouping.md
@@ -60,3 +61,4 @@ nav:
       - label_imputation: api/label_imputation.md
       - bin_editor: api/bin_editor.md
       - variable_clustering: api/variable_clustering.md
+      - feature_elimination: api/feature_elimination.md
