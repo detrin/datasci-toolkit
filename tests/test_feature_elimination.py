@@ -219,3 +219,33 @@ class TestShapRFE:
         rfe = ShapRFE(model=xgb.XGBClassifier(n_estimators=10, verbosity=0, random_state=42), step=1, min_features_to_select=3, cv=3, random_state=42)
         rfe.fit(X, y)
         assert len(rfe.report_df_) >= 1
+
+
+class TestGetReducedFeatures:
+    @pytest.fixture
+    def fitted_rfe(self, binary_dataset: tuple[pl.DataFrame, pl.Series]) -> ShapRFE:
+        X, y = binary_dataset
+        rfe = ShapRFE(model=lgb.LGBMClassifier(n_estimators=10, verbose=-1, random_state=42), step=1, min_features_to_select=1, cv=3, random_state=42)
+        rfe.fit(X, y)
+        return rfe
+
+    def test_best_returns_list(self, fitted_rfe: ShapRFE) -> None:
+        result = fitted_rfe.get_reduced_features("best")
+        assert isinstance(result, list)
+        assert len(result) >= 1
+
+    def test_best_coherent_has_most_features_within_se(self, fitted_rfe: ShapRFE) -> None:
+        best = fitted_rfe.get_reduced_features("best")
+        coherent = fitted_rfe.get_reduced_features("best_coherent")
+        assert len(coherent) >= len(best)
+
+    def test_best_parsimonious_has_fewest_features_within_se(self, fitted_rfe: ShapRFE) -> None:
+        coherent = fitted_rfe.get_reduced_features("best_coherent")
+        parsimonious = fitted_rfe.get_reduced_features("best_parsimonious")
+        assert len(parsimonious) <= len(coherent)
+
+    def test_all_methods_return_valid_features(self, fitted_rfe: ShapRFE) -> None:
+        all_features = set(fitted_rfe.report_df_["features"][0])
+        for method in ["best", "best_coherent", "best_parsimonious"]:
+            result = fitted_rfe.get_reduced_features(method)
+            assert set(result).issubset(all_features)
