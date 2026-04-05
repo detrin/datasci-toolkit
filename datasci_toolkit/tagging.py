@@ -130,7 +130,7 @@ class WeightedTFIDF(BaseEstimator, TransformerMixin):
             normal.select(entity_col, tag_col, "final_score"),
         ])
 
-    def fit_transform(
+    def fit_transform(  # type: ignore[override]
         self,
         X: pl.DataFrame,
         entity_col: str | None = None,
