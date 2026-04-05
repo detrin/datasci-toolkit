@@ -28,6 +28,8 @@ pip install datasci-toolkit
 | `bin_editor` | `BinEditor`, `BinEditorWidget` | Headless and interactive bin boundary editor |
 | `variable_clustering` | `CorrVarClus` | Hierarchical correlation clustering for variable reduction |
 | `temporal` | `TemporalFeatureEngineer` | Time-based feature generation |
+| `smoothing` | `PoissonSmoother`, `PredictionSmoother` | Adaptive temporal count smoothing and prediction de-jittering |
+| `tagging` | `WeightedTFIDF` | Weighted TF-IDF entity tagging with Z-score normalization |
 
 ## Quick start
 

@@ -15,6 +15,8 @@ Polars-native Python toolkit for binary classification, scorecard development, a
 | [`bin_editor`](api/bin_editor.md) | `BinEditor`, `BinEditorWidget` | Headless and interactive bin boundary editor |
 | [`variable_clustering`](api/variable_clustering.md) | `CorrVarClus` | Hierarchical correlation clustering |
 | [`temporal`](tutorials/temporal.md) | `TemporalFeatureEngineer` | Time-based feature generation |
+| [`smoothing`](api/smoothing.md) | `PoissonSmoother`, `PredictionSmoother` | Adaptive temporal smoothing |
+| [`tagging`](api/tagging.md) | `WeightedTFIDF` | Weighted TF-IDF entity tagging |
 
 ## Install
 

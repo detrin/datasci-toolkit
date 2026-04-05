@@ -8,6 +8,8 @@ from datasci_toolkit.variable_clustering import CorrVarClus
 from datasci_toolkit.label_imputation import KNNLabelImputer, TargetImputer
 from datasci_toolkit.stability import ESI, PSI, StabilityMonitor, plot_psi_comparison, psi_hist
 from datasci_toolkit.temporal import AggSpec, RatioSpec, TemporalFeatureEngineer, TimeSinceSpec
+from datasci_toolkit.smoothing import PoissonSmoother, PredictionSmoother
+from datasci_toolkit.tagging import WeightedTFIDF
 
 __all__ = [
     "PSI",
@@ -39,4 +41,7 @@ __all__ = [
     "ShapImportance",
     "ShapRFE",
     "plot_shap_elimination",
+    "PoissonSmoother",
+    "PredictionSmoother",
+    "WeightedTFIDF",
 ]

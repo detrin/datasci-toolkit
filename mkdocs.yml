@@ -54,6 +54,8 @@ nav:
       - Variable Clustering: tutorials/variable_clustering.md
       - Feature Elimination (SHAP): tutorials/feature_elimination.md
       - Temporal Features: tutorials/temporal.md
+      - Smoothing: tutorials/smoothing.md
+      - Tagging: tutorials/tagging.md
   - API Reference:
       - stability: api/stability.md
       - grouping: api/grouping.md
@@ -63,3 +65,5 @@ nav:
       - bin_editor: api/bin_editor.md
       - variable_clustering: api/variable_clustering.md
       - feature_elimination: api/feature_elimination.md
+      - smoothing: api/smoothing.md
+      - tagging: api/tagging.md
