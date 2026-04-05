@@ -7,6 +7,7 @@ import pytest
 import xgboost as xgb
 
 from datasci_toolkit.feature_elimination._shap import compute_shap_values, shap_importance
+from datasci_toolkit.feature_elimination.elimination import ShapRFE
 from datasci_toolkit.feature_elimination.importance import ShapImportance
 
 RNG = np.random.default_rng(42)
@@ -152,8 +153,6 @@ class TestShapImportanceEstimator:
         assert hasattr(est, "val_score_std_")
         assert 0.5 < est.val_score_mean_ < 1.0
 
-
-from datasci_toolkit.feature_elimination.elimination import ShapRFE
 
 
 class TestShapRFE:

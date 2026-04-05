@@ -103,11 +103,16 @@ class ShapRFE(BaseEstimator):
         check_is_fitted(self)
         return self.report_df_
 
-    def get_reduced_features(self, method: str = "best", se_threshold: float = 1.0) -> list[str]:
+    def get_reduced_features(
+        self,
+        method: Literal["best", "best_coherent", "best_parsimonious"] = "best",
+        se_threshold: float = 1.0,
+    ) -> list[str]:
+        if method not in ("best", "best_coherent", "best_parsimonious"):
+            raise ValueError(method)
         check_is_fitted(self, ["report_df_"])
         df = self.report_df_
-        best_idx = df["val_score_mean"].arg_max()
-        assert best_idx is not None
+        best_idx = int(df["val_score_mean"].arg_max())  # type: ignore[arg-type]
         best_score = df["val_score_mean"][best_idx]
         best_std = df["val_score_std"][best_idx]
         threshold = best_score - se_threshold * best_std
@@ -117,10 +122,8 @@ class ShapRFE(BaseEstimator):
 
         within = df.filter(pl.col("val_score_mean") >= threshold)
         if method == "best_coherent":
-            idx = within["n_features"].arg_max()
-            assert idx is not None
+            idx = int(within["n_features"].arg_max())  # type: ignore[arg-type]
             return list(within["features"][idx])
 
-        idx = within["n_features"].arg_min()
-        assert idx is not None
+        idx = int(within["n_features"].arg_min())  # type: ignore[arg-type]
         return list(within["features"][idx])
