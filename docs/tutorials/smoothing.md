@@ -6,6 +6,13 @@ Adaptive temporal smoothing for count time series and classification probabiliti
 
 Smooths count time series using Poisson CDF p-values as adaptive blend weights. When today's count is consistent with history, the output is smoothed toward the historical mean. When it's anomalous, the raw observation is trusted.
 
+### When to use
+
+- **Credit scoring**: transaction counts per month fluctuate randomly. Smooth them before feature engineering so "num_transactions_last_6mo" reflects the customer's true activity level, not a lucky/unlucky month.
+- **Fraud detection**: login attempt counts spike during attacks but also vary day-to-day. Poisson smoothing preserves genuine attack spikes (low p-value → trust today) while dampening normal variance.
+- **E-commerce**: daily order counts per product are noisy. Smoothing gives demand planners a stable baseline while letting flash-sale volumes pass through untouched.
+- **IoT/sensor data**: event trigger counts per device per hour. Normal variance gets smoothed, genuine anomalies (device failure, environmental event) are preserved for alerting.
+
 ### Basic usage
 
 ```python
@@ -53,6 +60,13 @@ The flash-sale count of 320 will be mostly trusted (low p-value), while a normal
 ## PredictionSmoother
 
 Averages classification probabilities across time periods to stabilize label assignments. Reduces label churn caused by small feature fluctuations near decision boundaries.
+
+### When to use
+
+- **Credit risk monitoring**: a model re-scores customers monthly. Small feature movements cause predictions to oscillate around the 0.5 threshold -- a customer flips from "low risk" to "medium risk" and back, triggering unnecessary re-pricing or agent outreach. Smoothing over 3-6 months eliminates the churn.
+- **Customer segmentation**: a classification model assigns customers to segments (high-value, growth, at-risk). Month-to-month jitter in segment labels breaks downstream reporting and campaign targeting. Smoothing stabilizes the labels.
+- **Churn prediction**: a model scores users monthly. Smoothing prevents false churn alerts from one-off dips in engagement probability.
+- **Any production model scored periodically** where label stability matters more than instant reactivity.
 
 ### Binary mode
 

@@ -4,19 +4,31 @@ Polars-native Python toolkit for binary classification, scorecard development, a
 
 ## Modules
 
-| Module | Classes / Functions | Description |
+### Monitoring & Stability
+
+| Module | Classes / Functions | Use case |
 |---|---|---|
-| [`stability`](api/stability.md) | `PSI`, `ESI`, `StabilityMonitor` | Population and event stability indices |
-| [`grouping`](api/grouping.md) | `StabilityGrouping`, `WOETransformer` | Stability-constrained optimal binning and WOE encoding |
-| [`metrics`](api/metrics.md) | `gini`, `ks`, `lift`, `iv`, `BootstrapGini`, `feature_power` | Binary classification metrics with period breakdowns |
-| [`model_selection`](api/model_selection.md) | `AUCStepwiseLogit` | Gini-based stepwise logistic regression |
-| [`feature_elimination`](api/feature_elimination.md) | `ShapImportance`, `ShapRFE` | SHAP-based backward feature elimination with CV |
-| [`label_imputation`](api/label_imputation.md) | `KNNLabelImputer`, `TargetImputer` | Missing label imputation |
-| [`bin_editor`](api/bin_editor.md) | `BinEditor`, `BinEditorWidget` | Headless and interactive bin boundary editor |
-| [`variable_clustering`](api/variable_clustering.md) | `CorrVarClus` | Hierarchical correlation clustering |
-| [`temporal`](tutorials/temporal.md) | `TemporalFeatureEngineer` | Time-based feature generation |
-| [`smoothing`](api/smoothing.md) | `PoissonSmoother`, `PredictionSmoother` | Adaptive temporal smoothing |
-| [`tagging`](api/tagging.md) | `WeightedTFIDF` | Weighted TF-IDF entity tagging |
+| [`stability`](api/stability.md) | `PSI`, `ESI`, `StabilityMonitor` | Detect population drift between training and production -- catch when input distributions shift before model performance degrades |
+| [`metrics`](api/metrics.md) | `gini`, `ks`, `lift`, `iv`, `BootstrapGini`, `feature_power` | Evaluate binary classifiers with confidence intervals -- report Gini/KS/lift by month, identify which features drive predictive power |
+
+### Feature Engineering & Selection
+
+| Module | Classes / Functions | Use case |
+|---|---|---|
+| [`grouping`](api/grouping.md) | `StabilityGrouping`, `WOETransformer` | Bin continuous features into stable WOE-encoded groups for scorecard development -- ensures bins don't drift across time periods |
+| [`feature_elimination`](api/feature_elimination.md) | `ShapImportance`, `ShapRFE` | Reduce a 500-feature dataset to the 20 that matter -- backward elimination using SHAP values with cross-validation |
+| [`variable_clustering`](api/variable_clustering.md) | `CorrVarClus` | Remove redundant features before modeling -- hierarchical clustering picks one representative from each correlated group |
+| [`temporal`](tutorials/temporal.md) | `TemporalFeatureEngineer` | Generate time-windowed aggregations (sum/mean/max over 30d/90d/1y) from transaction histories for credit scoring or churn prediction |
+| [`tagging`](api/tagging.md) | `WeightedTFIDF` | Profile entities with ranked tags -- find top product attributes from reviews, build customer interest profiles from transactions, with external quality signals |
+
+### Model Building & Post-processing
+
+| Module | Classes / Functions | Use case |
+|---|---|---|
+| [`model_selection`](api/model_selection.md) | `AUCStepwiseLogit` | Build interpretable scorecards -- stepwise logistic regression that adds features by Gini lift and enforces correlation constraints |
+| [`bin_editor`](api/bin_editor.md) | `BinEditor`, `BinEditorWidget` | Manually adjust bin boundaries after auto-binning -- headless API for pipelines, interactive widget for notebooks |
+| [`label_imputation`](api/label_imputation.md) | `KNNLabelImputer`, `TargetImputer` | Recover labels for rejected loan applications (reject inference) or fill missing targets in semi-supervised settings |
+| [`smoothing`](api/smoothing.md) | `PoissonSmoother`, `PredictionSmoother` | Stabilize noisy count features before modeling (Poisson), or eliminate monthly prediction jitter so customers don't flip between risk tiers |
 
 ## Install
 

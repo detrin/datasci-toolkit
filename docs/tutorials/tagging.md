@@ -6,6 +6,14 @@ Weighted TF-IDF with per-entity Z-score normalization for entity tagging.
 
 Assigns ranked tags to entities using a weighted TF-IDF score, then normalizes per entity via Z-scores and min-max scaling.
 
+### When to use
+
+- **Product attribute extraction**: millions of products, each with hundreds of attribute mentions from reviews and descriptions. You want the top 5-10 tags that genuinely characterize each product. The weight column carries review helpfulness or NLP confidence, so a high-confidence mention of "waterproof" counts more than a passing reference.
+- **Customer interest profiling**: a bank wants to know what each customer "is about" -- mortgage customer, travel spender, investor. Tags are merchant categories, value is transaction count, weight is transaction amount. A customer with 2 large investment transfers is more "investor" than one with 50 small coffee purchases.
+- **Support ticket routing**: keywords extracted from tickets, weighted by extraction confidence. Subject-line keywords get a higher level than body text. The Z-score normalization means a 3-word ticket and a 500-word ticket both route on their most distinctive terms.
+- **Ad targeting / audience segmentation**: users tagged by browsed/purchased product categories, weighted by dwell time or conversion signal. You want the top 3-5 interest tags per user, comparable across power users and casual visitors.
+- **Any (entity, tag, count) problem** where you have an external quality signal and need the most *distinctive* tags per entity -- not the most frequent, not the globally rarest, but the ones that are unusually strong for that specific entity relative to its own distribution.
+
 ### Basic usage (standard TF-IDF)
 
 ```python
