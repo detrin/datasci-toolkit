@@ -3,7 +3,7 @@ from __future__ import annotations
 import polars as pl
 import pytest
 
-from datasci_toolkit.smoothing import PoissonSmoother
+from datasci_toolkit.smoothing import PoissonSmoother, PredictionSmoother
 
 
 @pytest.fixture
@@ -98,3 +98,104 @@ class TestPoissonSmootherFitTransform:
         assert len(result) == 2
         assert "eid" in result.columns
         assert "seg" in result.columns
+
+
+@pytest.fixture
+def binary_pred_df() -> pl.DataFrame:
+    return pl.DataFrame({
+        "eid": ["A", "A", "A", "B", "B"],
+        "month": [1, 2, 3, 1, 2],
+        "prob_default": [0.6, 0.4, 0.5, 0.8, 0.9],
+    })
+
+
+@pytest.fixture
+def multiclass_pred_df() -> pl.DataFrame:
+    return pl.DataFrame({
+        "eid": ["A", "A", "A", "B", "B"],
+        "month": [1, 2, 3, 1, 2],
+        "prob_cat": [0.5, 0.3, 0.4, 0.1, 0.2],
+        "prob_dog": [0.3, 0.5, 0.4, 0.8, 0.7],
+        "prob_bird": [0.2, 0.2, 0.2, 0.1, 0.1],
+    })
+
+
+class TestPredictionSmootherInit:
+    def test_default_params(self) -> None:
+        ps = PredictionSmoother()
+        assert ps.min_observations == 1
+
+    def test_custom_params(self) -> None:
+        ps = PredictionSmoother(min_observations=3)
+        assert ps.min_observations == 3
+
+
+class TestPredictionSmootherBinary:
+    def test_fit_returns_self(self) -> None:
+        ps = PredictionSmoother()
+        assert ps.fit() is ps
+
+    def test_binary_output_columns(self, binary_pred_df: pl.DataFrame) -> None:
+        ps = PredictionSmoother().fit()
+        result = ps.transform(binary_pred_df, entity_cols=["eid"], period_col="month", prob_cols="prob_default")
+        assert "eid" in result.columns
+        assert "prob_default" in result.columns
+        assert "observation_count" in result.columns
+        assert "predicted_label" not in result.columns
+
+    def test_binary_averages_correctly(self, binary_pred_df: pl.DataFrame) -> None:
+        ps = PredictionSmoother().fit()
+        result = ps.transform(binary_pred_df, entity_cols=["eid"], period_col="month", prob_cols="prob_default")
+        a_row = result.filter(pl.col("eid") == "A")
+        assert abs(a_row["prob_default"][0] - 0.5) < 1e-6
+
+    def test_binary_observation_count(self, binary_pred_df: pl.DataFrame) -> None:
+        ps = PredictionSmoother().fit()
+        result = ps.transform(binary_pred_df, entity_cols=["eid"], period_col="month", prob_cols="prob_default")
+        a_row = result.filter(pl.col("eid") == "A")
+        b_row = result.filter(pl.col("eid") == "B")
+        assert a_row["observation_count"][0] == 3
+        assert b_row["observation_count"][0] == 2
+
+    def test_min_observations_filter(self, binary_pred_df: pl.DataFrame) -> None:
+        ps = PredictionSmoother(min_observations=3).fit()
+        result = ps.transform(binary_pred_df, entity_cols=["eid"], period_col="month", prob_cols="prob_default")
+        assert len(result) == 1
+        assert result["eid"][0] == "A"
+
+
+class TestPredictionSmootherMulticlass:
+    def test_multiclass_output_columns(self, multiclass_pred_df: pl.DataFrame) -> None:
+        ps = PredictionSmoother().fit()
+        result = ps.transform(multiclass_pred_df, entity_cols=["eid"], period_col="month", prob_cols=["prob_cat", "prob_dog", "prob_bird"])
+        assert "predicted_label" in result.columns
+        assert "observation_count" in result.columns
+        for c in ["prob_cat", "prob_dog", "prob_bird"]:
+            assert c in result.columns
+
+    def test_multiclass_argmax(self, multiclass_pred_df: pl.DataFrame) -> None:
+        ps = PredictionSmoother().fit()
+        result = ps.transform(multiclass_pred_df, entity_cols=["eid"], period_col="month", prob_cols=["prob_cat", "prob_dog", "prob_bird"])
+        a_row = result.filter(pl.col("eid") == "A")
+        b_row = result.filter(pl.col("eid") == "B")
+        assert a_row["predicted_label"][0] == "prob_cat"
+        assert b_row["predicted_label"][0] == "prob_dog"
+
+    def test_multiclass_averages(self, multiclass_pred_df: pl.DataFrame) -> None:
+        ps = PredictionSmoother().fit()
+        result = ps.transform(multiclass_pred_df, entity_cols=["eid"], period_col="month", prob_cols=["prob_cat", "prob_dog", "prob_bird"])
+        a_row = result.filter(pl.col("eid") == "A")
+        assert abs(a_row["prob_cat"][0] - 0.4) < 1e-6
+        assert abs(a_row["prob_dog"][0] - 0.4) < 1e-6
+        assert abs(a_row["prob_bird"][0] - 0.2) < 1e-6
+
+    def test_multiple_entity_cols(self) -> None:
+        df = pl.DataFrame({
+            "eid": ["A", "A", "A", "A"],
+            "seg": ["X", "X", "Y", "Y"],
+            "month": [1, 2, 1, 2],
+            "p": [0.6, 0.4, 0.8, 0.9],
+        })
+        ps = PredictionSmoother().fit()
+        result = ps.transform(df, entity_cols=["eid", "seg"], period_col="month", prob_cols="p")
+        assert len(result) == 2

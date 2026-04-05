@@ -80,3 +80,51 @@ class PoissonSmoother(BaseEstimator, TransformerMixin):
         ).drop("history_sum")
 
         return result.filter(pl.col("smoothed_count") > 0)
+
+
+class PredictionSmoother(BaseEstimator, TransformerMixin):
+    def __init__(self, min_observations: int = 1) -> None:
+        self.min_observations = min_observations
+
+    def fit(self, X: pl.DataFrame | None = None, y: None = None) -> PredictionSmoother:
+        self.fitted_ = True
+        return self
+
+    def transform(
+        self,
+        X: pl.DataFrame,
+        entity_cols: list[str] | None = None,
+        period_col: str | None = None,
+        prob_cols: str | list[str] | None = None,
+    ) -> pl.DataFrame:
+        check_is_fitted(self)
+        if entity_cols is None:
+            raise ValueError("entity_cols is required")
+        if period_col is None:
+            raise ValueError("period_col is required")
+        if prob_cols is None:
+            raise ValueError("prob_cols is required")
+
+        if isinstance(prob_cols, str):
+            binary = True
+            cols: list[str] = [prob_cols]
+        else:
+            binary = False
+            cols = prob_cols
+
+        agg_exprs = [pl.col(c).mean().round(10).alias(c) for c in cols]
+        agg_exprs.append(pl.len().alias("observation_count"))
+        result = X.group_by(entity_cols).agg(agg_exprs)
+        result = result.filter(pl.col("observation_count") >= self.min_observations)
+
+        if not binary:
+            result = result.with_columns(
+                pl.struct(cols)
+                .map_elements(
+                    lambda row: max(cols, key=lambda c: row[c]),
+                    return_dtype=pl.String,
+                )
+                .alias("predicted_label")
+            )
+
+        return result
