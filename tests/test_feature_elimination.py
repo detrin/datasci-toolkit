@@ -151,3 +151,72 @@ class TestShapImportanceEstimator:
         assert hasattr(est, "val_score_mean_")
         assert hasattr(est, "val_score_std_")
         assert 0.5 < est.val_score_mean_ < 1.0
+
+
+from datasci_toolkit.feature_elimination.elimination import ShapRFE
+
+
+class TestShapRFE:
+    def test_fit_returns_self(self, binary_dataset: tuple[pl.DataFrame, pl.Series]) -> None:
+        X, y = binary_dataset
+        rfe = ShapRFE(model=lgb.LGBMClassifier(n_estimators=10, verbose=-1, random_state=42), step=1, min_features_to_select=2, cv=3, random_state=42)
+        result = rfe.fit(X, y)
+        assert result is rfe
+
+    def test_report_df_schema(self, binary_dataset: tuple[pl.DataFrame, pl.Series]) -> None:
+        X, y = binary_dataset
+        rfe = ShapRFE(model=lgb.LGBMClassifier(n_estimators=10, verbose=-1, random_state=42), step=1, min_features_to_select=2, cv=3, random_state=42)
+        rfe.fit(X, y)
+        df = rfe.report_df_
+        assert isinstance(df, pl.DataFrame)
+        expected_cols = ["round", "n_features", "features", "eliminated", "train_score_mean", "train_score_std", "val_score_mean", "val_score_std"]
+        assert df.columns == expected_cols
+
+    def test_features_decrease_each_round(self, binary_dataset: tuple[pl.DataFrame, pl.Series]) -> None:
+        X, y = binary_dataset
+        rfe = ShapRFE(model=lgb.LGBMClassifier(n_estimators=10, verbose=-1, random_state=42), step=1, min_features_to_select=2, cv=3, random_state=42)
+        rfe.fit(X, y)
+        n_features = rfe.report_df_["n_features"].to_list()
+        assert n_features == sorted(n_features, reverse=True)
+        assert n_features[-1] >= 2
+
+    def test_min_features_respected(self, binary_dataset: tuple[pl.DataFrame, pl.Series]) -> None:
+        X, y = binary_dataset
+        rfe = ShapRFE(model=lgb.LGBMClassifier(n_estimators=10, verbose=-1, random_state=42), step=2, min_features_to_select=3, cv=3, random_state=42)
+        rfe.fit(X, y)
+        assert rfe.report_df_["n_features"].to_list()[-1] >= 3
+
+    def test_step_float(self, binary_dataset: tuple[pl.DataFrame, pl.Series]) -> None:
+        X, y = binary_dataset
+        rfe = ShapRFE(model=lgb.LGBMClassifier(n_estimators=10, verbose=-1, random_state=42), step=0.3, min_features_to_select=1, cv=3, random_state=42)
+        rfe.fit(X, y)
+        assert rfe.report_df_["n_features"].to_list()[-1] >= 1
+
+    def test_columns_to_keep_survives(self, binary_dataset: tuple[pl.DataFrame, pl.Series]) -> None:
+        X, y = binary_dataset
+        rfe = ShapRFE(
+            model=lgb.LGBMClassifier(n_estimators=10, verbose=-1, random_state=42),
+            step=1, min_features_to_select=1, cv=3, random_state=42, columns_to_keep=["f0"],
+        )
+        rfe.fit(X, y)
+        last_features = rfe.report_df_["features"].to_list()[-1]
+        assert "f0" in last_features
+
+    def test_compute_returns_report(self, binary_dataset: tuple[pl.DataFrame, pl.Series]) -> None:
+        X, y = binary_dataset
+        rfe = ShapRFE(model=lgb.LGBMClassifier(n_estimators=10, verbose=-1, random_state=42), step=1, min_features_to_select=2, cv=3, random_state=42)
+        rfe.fit(X, y)
+        assert rfe.compute().equals(rfe.report_df_)
+
+    def test_feature_names_set(self, binary_dataset: tuple[pl.DataFrame, pl.Series]) -> None:
+        X, y = binary_dataset
+        rfe = ShapRFE(model=lgb.LGBMClassifier(n_estimators=10, verbose=-1, random_state=42), step=1, min_features_to_select=2, cv=3, random_state=42)
+        rfe.fit(X, y)
+        assert isinstance(rfe.feature_names_, list)
+        assert len(rfe.feature_names_) >= 2
+
+    def test_works_with_xgboost(self, binary_dataset: tuple[pl.DataFrame, pl.Series]) -> None:
+        X, y = binary_dataset
+        rfe = ShapRFE(model=xgb.XGBClassifier(n_estimators=10, verbosity=0, random_state=42), step=1, min_features_to_select=3, cv=3, random_state=42)
+        rfe.fit(X, y)
+        assert len(rfe.report_df_) >= 1
