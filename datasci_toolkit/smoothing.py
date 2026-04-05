@@ -35,10 +35,14 @@ class PoissonSmoother(BaseEstimator, TransformerMixin):
         target_date: str | None = None,
     ) -> pl.DataFrame:
         check_is_fitted(self)
-        assert entity_cols is not None
-        assert date_col is not None
-        assert value_col is not None
-        assert target_date is not None
+        if entity_cols is None:
+            raise ValueError("entity_cols is required")
+        if date_col is None:
+            raise ValueError("date_col is required")
+        if value_col is None:
+            raise ValueError("value_col is required")
+        if target_date is None:
+            raise ValueError("target_date is required")
 
         today = X.filter(pl.col(date_col) == target_date)
         history = X.filter(pl.col(date_col) != target_date)

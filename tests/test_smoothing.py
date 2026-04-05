@@ -1,13 +1,9 @@
 from __future__ import annotations
 
-import numpy as np
 import polars as pl
 import pytest
-from sklearn.utils.validation import check_is_fitted
 
 from datasci_toolkit.smoothing import PoissonSmoother
-
-RNG = np.random.default_rng(42)
 
 
 @pytest.fixture
@@ -61,7 +57,7 @@ class TestPoissonSmootherFitTransform:
     def test_transform_row_count(self, count_df: pl.DataFrame) -> None:
         ps = PoissonSmoother(window_size=7).fit()
         result = ps.transform(count_df, entity_cols=["entity_id"], date_col="date", value_col="count", target_date="2024-01-07")
-        assert len(result) <= 3
+        assert len(result) == 3
 
     def test_smoothed_between_today_and_history(self, count_df: pl.DataFrame) -> None:
         ps = PoissonSmoother(window_size=7).fit()
